@@ -23,7 +23,7 @@ import operator
 def get_param_from_yaml(robot, identif_data):
     """Parse identification parameters from YAML configuration file.
 
-    Extracts robot parameters, problem settings, signal processing options and total 
+    Extracts robot parameters, problem settings, signal processing options and total
     least squares parameters from a YAML config file.
 
     Args:
@@ -85,12 +85,12 @@ def get_param_from_yaml(robot, identif_data):
 
 def set_missing_params_setting(robot, params_settings):
     """Set default values for missing robot parameters.
-    
-    Fills in missing parameters in the robot model with default values from 
+
+    Fills in missing parameters in the robot model with default values from
     params_settings when URDF doesn't specify them.
 
     Args:
-        robot (pin.RobotWrapper): Robot instance to update 
+        robot (pin.RobotWrapper): Robot instance to update
         params_settings (dict): Default parameter values containing:
             - q_lim_def: Default joint position limits
             - dq_lim_def: Default joint velocity limits
@@ -110,10 +110,9 @@ def set_missing_params_setting(robot, params_settings):
     """
     # Compare lower and upper position limits
     diff_limit = np.setdiff1d(
-        robot.model.lowerPositionLimit, 
-        robot.model.upperPositionLimit
+        robot.model.lowerPositionLimit, robot.model.upperPositionLimit
     )
-    
+
     # Set default joint limits if none defined
     if not diff_limit.any:
         print("No joint limits. Set default values")
@@ -123,7 +122,7 @@ def set_missing_params_setting(robot, params_settings):
 
     # Set default velocity limits if zero
     if np.sum(robot.model.velocityLimit) == 0:
-        print("No velocity limit. Set default value") 
+        print("No velocity limit. Set default value")
         for ii in range(robot.model.nq):
             robot.model.velocityLimit[ii] = params_settings["dq_lim_def"]
 
@@ -146,7 +145,7 @@ def set_missing_params_setting(robot, params_settings):
             if ii == 0:
                 # Default viscous friction values
                 fv = [(ii + 1) / 10]
-                # Default static friction values  
+                # Default static friction values
                 fs = [(ii + 1) / 10]
             else:
                 fv.append((ii + 1) / 10)
@@ -168,12 +167,12 @@ def set_missing_params_setting(robot, params_settings):
 def base_param_from_standard(phi_standard, params_base):
     """Convert standard parameters to base parameters.
 
-    Takes standard dynamic parameters and calculates the corresponding base 
+    Takes standard dynamic parameters and calculates the corresponding base
     parameters using analytical relationships between them.
 
     Args:
         phi_standard (dict): Standard parameters from model/URDF
-        params_base (list): Analytical parameter relationships 
+        params_base (list): Analytical parameter relationships
 
     Returns:
         list: Base parameter values calculated from standard parameters
@@ -203,8 +202,8 @@ def base_param_from_standard(phi_standard, params_base):
 
 def relative_stdev(W_b, phi_b, tau):
     """Calculate relative standard deviation of identified parameters.
-    
-    Implements the residual error method from [Pressé & Gautier 1991] to 
+
+    Implements the residual error method from [Pressé & Gautier 1991] to
     estimate parameter uncertainty.
 
     Args:
@@ -215,9 +214,10 @@ def relative_stdev(W_b, phi_b, tau):
     Returns:
         ndarray: Relative standard deviation (%) for each base parameter
     """
-    # stdev of residual error ro 
-    sig_ro_sqr = (np.linalg.norm((tau - np.dot(W_b, phi_b))) ** 2 / 
-                 (W_b.shape[0] - phi_b.shape[0]))
+    # stdev of residual error ro
+    sig_ro_sqr = np.linalg.norm((tau - np.dot(W_b, phi_b))) ** 2 / (
+        W_b.shape[0] - phi_b.shape[0]
+    )
 
     # covariance matrix of estimated parameters
     C_x = sig_ro_sqr * np.linalg.inv(np.dot(W_b.T, W_b))
@@ -226,18 +226,15 @@ def relative_stdev(W_b, phi_b, tau):
     std_x_sqr = np.diag(C_x)
     std_xr = np.zeros(std_x_sqr.shape[0])
     for i in range(std_x_sqr.shape[0]):
-        std_xr[i] = np.round(
-            100 * np.sqrt(std_x_sqr[i]) / np.abs(phi_b[i]), 
-            2
-        )
+        std_xr[i] = np.round(100 * np.sqrt(std_x_sqr[i]) / np.abs(phi_b[i]), 2)
 
     return std_xr
 
 
 def index_in_base_params(params, id_segments):
     """Map segment IDs to their base parameters.
-    
-    For each segment ID, finds which base parameters contain inertial 
+
+    For each segment ID, finds which base parameters contain inertial
     parameters from that segment.
 
     Args:
@@ -290,8 +287,8 @@ def index_in_base_params(params, id_segments):
 
 def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
     """Compute weighted least squares solution for parameter identification.
-    
-    Implements iteratively reweighted least squares method from 
+
+    Implements iteratively reweighted least squares method from
     [Gautier, 1997]. Accounts for heteroscedastic noise.
 
     Args:
@@ -311,19 +308,18 @@ def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
     start_idx = int(0)
     for ii in range(robot.model.nq):
         tau_slice = slice(int(start_idx), int(param["idx_tau_stop"][ii]))
-        diff = (tau_meas[tau_slice] - tau_est[tau_slice])
+        diff = tau_meas[tau_slice] - tau_est[tau_slice]
         denom = len(tau_meas[tau_slice]) - len(phi_b)
         sigma[ii] = np.linalg.norm(diff) / denom
 
         start_idx = param["idx_tau_stop"][ii]
-        
+
         for jj in range(nb_samples):
             idx = jj + ii * nb_samples
             P[idx, idx] = 1 / sigma[ii]
 
         phi_b = np.matmul(
-            np.linalg.pinv(np.matmul(P, W_b)), 
-            np.matmul(P, tau_meas)
+            np.linalg.pinv(np.matmul(P, W_b)), np.matmul(P, tau_meas)
         )
 
     phi_b = np.around(phi_b, 6)
@@ -334,7 +330,7 @@ def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
 def calculate_first_second_order_differentiation(model, q, param, dt=None):
     """Calculate joint velocities and accelerations from positions.
 
-    Computes first and second order derivatives of joint positions using central 
+    Computes first and second order derivatives of joint positions using central
     differences. Handles both constant and variable timesteps.
 
     Args:
@@ -349,7 +345,7 @@ def calculate_first_second_order_differentiation(model, q, param, dt=None):
     Returns:
         tuple:
             - q (ndarray): Trimmed position matrix
-            - dq (ndarray): Joint velocity matrix  
+            - dq (ndarray): Joint velocity matrix
             - ddq (ndarray): Joint acceleration matrix
 
     Note:
@@ -389,8 +385,8 @@ def calculate_first_second_order_differentiation(model, q, param, dt=None):
 
 def low_pass_filter_data(data, param, nbutter=5):
     """Apply zero-phase Butterworth low-pass filter to measurement data.
-    
-    Uses scipy's filtfilt for zero-phase digital filtering. Removes high 
+
+    Uses scipy's filtfilt for zero-phase digital filtering. Removes high
     frequency noise while preserving signal phase. Handles border effects by
     trimming filtered data.
 
@@ -405,7 +401,7 @@ def low_pass_filter_data(data, param, nbutter=5):
     Returns:
         ndarray: Filtered data with border regions removed
 
-    Note: 
+    Note:
         Border effects are handled by removing nborder = 5*nbutter samples
         from start and end of filtered signal.
     """
@@ -418,7 +414,7 @@ def low_pass_filter_data(data, param, nbutter=5):
     # Remove border effects
     nbord = 5 * nbutter
     data = np.delete(data, np.s_[0:nbord], axis=0)
-    end_slice = slice(data.shape[0] - nbord, data.shape[0]) 
+    end_slice = slice(data.shape[0] - nbord, data.shape[0])
     data = np.delete(data, end_slice, axis=0)
 
     return data
@@ -429,11 +425,11 @@ def low_pass_filter_data(data, param, nbutter=5):
 
 def quadprog_solve_qp(P, q, G=None, h=None, A=None, b=None):
     """Solve a Quadratic Program defined as:
-        
+
     minimize    1/2 x^T P x + q^T x
     subject to  G x <= h
                 A x = b
-                
+
     Args:
         P (ndarray): Symmetric quadratic cost matrix (n x n)
         q (ndarray): Linear cost vector (n)
@@ -441,10 +437,10 @@ def quadprog_solve_qp(P, q, G=None, h=None, A=None, b=None):
         h (ndarray, optional): Linear inequality constraint vector (m).
         A (ndarray, optional): Linear equality constraint matrix (p x n).
         b (ndarray, optional): Linear equality constraint vector (p).
-    
+
     Returns:
         ndarray: Optimal solution vector x* (n)
-        
+
     Note:
         Ensures P is symmetric positive definite by adding small identity matrix
     """
@@ -468,7 +464,7 @@ def calculate_standard_parameters(
 ):
     """Calculate optimal standard inertial parameters via quadratic
     programming.
-    
+
     Finds standard parameters that:
     1. Best fit measurement data (tau)
     2. Stay close to reference values from URDF
@@ -479,7 +475,7 @@ def calculate_standard_parameters(
         W (ndarray): Regressor matrix mapping parameters to measurements
         tau (ndarray): Measured force/torque data
         COM_max (ndarray): Upper bounds on center of mass positions
-        COM_min (ndarray): Lower bounds on center of mass positions 
+        COM_min (ndarray): Lower bounds on center of mass positions
         params_standard_u (dict): Reference parameters from URDF
         alpha (float): Weight between fitting data (1) vs staying near refs (0)
 
@@ -487,7 +483,7 @@ def calculate_standard_parameters(
         tuple:
             - phi_standard (ndarray): Optimized standard parameters
             - phi_ref (ndarray): Reference parameters from URDF
-            
+
     Note:
         Constrains parameters to stay within [0.7, 1.3] times reference values
         except for COM positions which use explicit bounds.
@@ -525,10 +521,10 @@ def calculate_standard_parameters(
     sf1 = 1 / (np.max(phi_ref) * len(phi_ref))
     sf2 = 1 / (np.max(tau) * len(tau))
 
-    P = ((1 - alpha) * sf1 * np.eye(W.shape[1]) + 
-         alpha * sf2 * np.matmul(W.T, W))
-    r = (-((1 - alpha) * sf1 * phi_ref.T + 
-           sf2 * alpha * np.matmul(tau.T, W)))
+    P = (1 - alpha) * sf1 * np.eye(W.shape[1]) + alpha * sf2 * np.matmul(
+        W.T, W
+    )
+    r = -((1 - alpha) * sf1 * phi_ref.T + sf2 * alpha * np.matmul(tau.T, W))
 
     # Setting constraints
     G = np.zeros(((14) * (nreal), 10 * nreal))

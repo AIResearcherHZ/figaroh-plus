@@ -25,7 +25,7 @@ class Measurement:
 
         Args:
             name: Name of measurement
-            joint: Joint where measurement is expressed 
+            joint: Joint where measurement is expressed
             frame: Closest frame from measurement
             type: Type of measurement (SE3, wrench, current)
             value: 6D measurement value wrt joint placement

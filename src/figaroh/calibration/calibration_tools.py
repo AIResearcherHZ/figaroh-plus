@@ -55,22 +55,22 @@ BASE_TPL = [
 ]
 
 
-# INITIALIZATION TOOLS 
+# INITIALIZATION TOOLS
 def get_param_from_yaml(robot, calib_data) -> dict:
     """Parse calibration parameters from YAML configuration file.
 
-    Processes robot and calibration data to build a parameter dictionary containing 
+    Processes robot and calibration data to build a parameter dictionary containing
     all necessary settings for robot calibration. Handles configuration of:
     - Frame identifiers and relationships
     - Marker/measurement settings
-    - Joint indices and configurations  
+    - Joint indices and configurations
     - Non-geometric parameters
     - Eye-hand calibration setup
-    
+
     Args:
         robot (pin.RobotWrapper): Robot instance containing model and data
         calib_data (dict): Calibration parameters parsed from YAML file containing:
-            - markers: List of marker configurations 
+            - markers: List of marker configurations
             - calib_level: Calibration model type
             - base_frame: Starting frame name
             - tool_frame: End frame name
@@ -119,16 +119,16 @@ def get_param_from_yaml(robot, calib_data) -> dict:
     param["calib_model"] = calib_data["calib_level"]
 
     # Get start and end frames
-    start_frame = calib_data["base_frame"] 
+    start_frame = calib_data["base_frame"]
     end_frame = calib_data["tool_frame"]
-    
+
     # Validate frames exist
     err_msg = "{}_frame {} does not exist"
     if start_frame not in frames:
         raise AssertionError(err_msg.format("Start", start_frame))
     if end_frame not in frames:
         raise AssertionError(err_msg.format("End", end_frame))
-        
+
     param["start_frame"] = start_frame
     param["end_frame"] = end_frame
 
@@ -147,7 +147,7 @@ def get_param_from_yaml(robot, calib_data) -> dict:
             err_msg = "base_to_ref_frame {} does not exist"
             raise AssertionError(err_msg.format(base_to_ref_frame))
 
-    # Validate ref frame if provided  
+    # Validate ref frame if provided
     if ref_frame is not None:
         if ref_frame not in frames:
             err_msg = "ref_frame {} does not exist"
@@ -251,8 +251,8 @@ def get_param_from_yaml(robot, calib_data) -> dict:
 
 def get_joint_offset(model, joint_names):
     """Get dictionary of joint offset parameters.
-    
-    Maps joint names to their offset parameters, handling special cases for 
+
+    Maps joint names to their offset parameters, handling special cases for
     different joint types and multiple DOF joints.
 
     Args:
@@ -262,10 +262,10 @@ def get_joint_offset(model, joint_names):
     Returns:
         dict: Mapping of joint offset parameter names to initial zero values.
             Keys have format: "{offset_type}_{joint_name}"
-            
+
     Example:
         >>> offsets = get_joint_offset(robot.model, robot.model.names[1:])
-        >>> print(offsets["offsetRZ_joint1"]) 
+        >>> print(offsets["offsetRZ_joint1"])
         0.0
     """
     joint_off = []
@@ -290,7 +290,9 @@ def get_joint_offset(model, joint_names):
                     + name
                 )
             else:
-                offset_param = shortname.replace("JointModel", "offset") + "_" + name
+                offset_param = (
+                    shortname.replace("JointModel", "offset") + "_" + name
+                )
             joint_off.append(offset_param)
 
     phi_jo = [0] * len(joint_off)  # default zero values
@@ -300,8 +302,8 @@ def get_joint_offset(model, joint_names):
 
 def get_geo_offset(joint_names):
     """Get dictionary of geometric parameter variations.
-    
-    Creates mapping of geometric offset parameters for each joint's 
+
+    Creates mapping of geometric offset parameters for each joint's
     position and orientation.
 
     Args:
@@ -333,7 +335,7 @@ def get_geo_offset(joint_names):
 
 def add_base_name(param):
     """Add base frame parameters to parameter list.
-    
+
     Updates param["param_name"] with base frame parameters depending on
     calibration model type.
 
@@ -355,7 +357,7 @@ def add_base_name(param):
 
 def add_pee_name(param):
     """Add end-effector marker parameters to parameter list.
-    
+
     Adds parameters for each active measurement DOF of each marker.
 
     Args:
@@ -366,7 +368,7 @@ def add_pee_name(param):
 
     Side Effects:
         Modifies param["param_name"] in place by appending marker parameters
-        in format: "{param_type}_{marker_num}" 
+        in format: "{param_type}_{marker_num}"
     """
     PEE_names = []
     for i in range(param["NbMarkers"]):
@@ -378,7 +380,7 @@ def add_pee_name(param):
 
 def add_eemarker_frame(frame_name, p, rpy, model, data):
     """Add a new frame attached to the end-effector.
-    
+
     Creates and adds a fixed frame to the robot model at the end-effector location,
     typically used for marker or tool frames.
 
@@ -444,7 +446,7 @@ def load_data(path_to_file, model, param, del_list=[]):
 
     Reads marker positions/orientations and joint configurations from a CSV file.
     Handles data validation, bad sample removal, and conversion to numpy arrays.
-    
+
     Args:
         path_to_file (str): Path to CSV file containing recorded data
         model (pin.Model): Robot model containing joint information
@@ -463,12 +465,12 @@ def load_data(path_to_file, model, param, del_list=[]):
 
     Note:
         CSV file must contain columns:
-        - For each marker i: [xi, yi, zi, phixi, phiyi, phizi] 
+        - For each marker i: [xi, yi, zi, phixi, phiyi, phizi]
         - Joint names matching model.names for active joints
-        
+
     Raises:
         KeyError: If required columns are missing from CSV
-        
+
     Side Effects:
         - Prints joint headers
         - Updates param["NbSample"] with number of valid samples
@@ -544,10 +546,10 @@ def rank_in_configuration(model, joint_name):
 
 def cartesian_to_SE3(X):
     """Convert cartesian coordinates to SE3 transformation.
-    
+
     Args:
         X (ndarray): (6,) array with [x,y,z,rx,ry,rz] coordinates
-        
+
     Returns:
         pin.SE3: SE3 transformation with:
             - translation from X[0:3]
@@ -564,13 +566,13 @@ def cartesian_to_SE3(X):
 def xyzquat_to_SE3(xyzquat):
     """Convert XYZ position and quaternion orientation to SE3 transformation.
 
-    Takes a 7D vector containing XYZ position and WXYZ quaternion and creates 
+    Takes a 7D vector containing XYZ position and WXYZ quaternion and creates
     an SE3 transformation matrix.
 
     Args:
         xyzquat (ndarray): (7,) array containing:
             - xyzquat[0:3]: XYZ position coordinates
-            - xyzquat[3:7]: WXYZ quaternion orientation 
+            - xyzquat[3:7]: WXYZ quaternion orientation
 
     Returns:
         pin.SE3: Rigid body transformation with:
@@ -578,7 +580,7 @@ def xyzquat_to_SE3(xyzquat):
             - Rotation matrix from normalized quaternion
 
     Example:
-        >>> pos_quat = np.array([0.1, 0.2, 0.3, 1.0, 0, 0, 0]) 
+        >>> pos_quat = np.array([0.1, 0.2, 0.3, 1.0, 0, 0, 0])
         >>> transform = xyzquat_to_SE3(pos_quat)
     """
     xyzquat = np.array(xyzquat)
@@ -591,7 +593,7 @@ def xyzquat_to_SE3(xyzquat):
 
 def get_rel_transform(model, data, start_frame, end_frame):
     """Get relative transformation between two frames.
-    
+
     Calculates the transform from start_frame to end_frame in the kinematic chain.
     Assumes forward kinematics has been updated.
 
@@ -620,7 +622,7 @@ def get_rel_transform(model, data, start_frame, end_frame):
 
 def get_sup_joints(model, start_frame, end_frame):
     """Get list of supporting joints between two frames in kinematic chain.
-    
+
     Finds all joints that contribute to relative motion between start_frame and
     end_frame by analyzing their support branches in the kinematic tree.
 
@@ -637,9 +639,9 @@ def get_sup_joints(model, start_frame, end_frame):
 
     Raises:
         AssertionError: If end frame appears before start frame in chain
-        
+
     Note:
-        Excludes "universe" joints from returned list since they don't 
+        Excludes "universe" joints from returned list since they don't
         contribute to relative motion.
     """
     start_frameId = model.getFrameId(start_frame)
@@ -668,7 +670,9 @@ def get_sup_joints(model, start_frame, end_frame):
         if shared_joints == branch_s:
             sup_joints = [branch_s[-1]] + list_2
         else:
-            assert shared_joints != branch_e, "End frame should be before start frame."
+            assert (
+                shared_joints != branch_e
+            ), "End frame should be before start frame."
             # case 3: there are overlapping joints between two branches
             sup_joints = list_1 + [shared_joints[-1]] + list_2
     return sup_joints
@@ -676,12 +680,12 @@ def get_sup_joints(model, start_frame, end_frame):
 
 def get_rel_kinreg(model, data, start_frame, end_frame, q):
     """Calculate relative kinematic regressor between frames.
-    
+
     Computes frame Jacobian-based regressor matrix mapping small joint displacements
     to spatial velocities.
 
     Args:
-        model (pin.Model): Robot model 
+        model (pin.Model): Robot model
         data (pin.Data): Robot data
         start_frame (str): Starting frame name
         end_frame (str): Target frame name
@@ -706,7 +710,7 @@ def get_rel_kinreg(model, data, start_frame, end_frame, q):
 
 def get_rel_jac(model, data, start_frame, end_frame, q):
     """Calculate relative Jacobian matrix between two frames.
-    
+
     Computes the difference between Jacobians of end_frame and start_frame,
     giving the differential mapping from joint velocities to relative spatial velocity.
 
@@ -714,7 +718,7 @@ def get_rel_jac(model, data, start_frame, end_frame, q):
         model (pin.Model): Robot model
         data (pin.Data): Robot data
         start_frame (str): Starting frame name
-        end_frame (str): Target frame name 
+        end_frame (str): Target frame name
         q (ndarray): Joint configuration vector
 
     Returns:
@@ -722,7 +726,7 @@ def get_rel_jac(model, data, start_frame, end_frame, q):
             - Rows represent [dx,dy,dz,wx,wy,wz] spatial velocities
             - Columns represent joint velocities
             - n is number of joints
-    
+
     Note:
         Updates forward kinematics before computing Jacobians
     """
@@ -734,7 +738,9 @@ def get_rel_jac(model, data, start_frame, end_frame, q):
     pin.updateFramePlacements(model, data)
 
     # relative Jacobian
-    J_start = pin.computeFrameJacobian(model, data, q, start_frameId, pin.LOCAL)
+    J_start = pin.computeFrameJacobian(
+        model, data, q, start_frameId, pin.LOCAL
+    )
     J_end = pin.computeFrameJacobian(model, data, q, end_frameId, pin.LOCAL)
     J_rel = J_end - J_start
     return J_rel
@@ -777,8 +783,8 @@ def get_LMvariables(param, mode=0, seed=0):
 
 def update_forward_kinematics(model, data, var, q, param, verbose=0):
     """Update forward kinematics with calibration parameters.
-    
-    Applies geometric and kinematic error parameters to update joint placements 
+
+    Applies geometric and kinematic error parameters to update joint placements
     and compute end-effector poses. Handles:
     1. Base/camera transformations
     2. Joint placement offsets
@@ -799,7 +805,7 @@ def update_forward_kinematics(model, data, var, q, param, verbose=0):
 
     Returns:
         ndarray: Flattened end-effector measurements for all samples
-        
+
     Side Effects:
         - Modifies model joint placements temporarily
         - Reverts model to original state before returning
@@ -959,7 +965,9 @@ def update_forward_kinematics(model, data, var, q, param, verbose=0):
 
     PEE = PEE.flatten("C")
     # revert model back to original
-    assert origin_model.jointPlacements != model.jointPlacements, "before revert"
+    assert (
+        origin_model.jointPlacements != model.jointPlacements
+    ), "before revert"
     for j_id in param["actJoint_idx"]:
         xyz_rpy = np.zeros(6)
         j_name = model.names[j_id]
@@ -971,15 +979,17 @@ def update_forward_kinematics(model, data, var, q, param, verbose=0):
                         xyz_rpy[axis_id] = param_dict[key]
         model = update_joint_placement(model, j_id, -xyz_rpy)
 
-    assert origin_model.jointPlacements != model.jointPlacements, "after revert"
+    assert (
+        origin_model.jointPlacements != model.jointPlacements
+    ), "after revert"
 
     return PEE
 
 
 def update_forward_kinematics_2(model, data, var, q, param, verbose=0):
     """Update forward kinematics with multiple markers.
-    
-    Similar to update_forward_kinematics() but handles multiple end-effector 
+
+    Similar to update_forward_kinematics() but handles multiple end-effector
     markers. Each marker can have its own frame transformation.
 
     Args:
@@ -995,7 +1005,7 @@ def update_forward_kinematics_2(model, data, var, q, param, verbose=0):
 
     Returns:
         ndarray: Concatenated marker measurements for all samples
-        
+
     Raises:
         AssertionError: If number of markers doesn't match frames
     """
@@ -1037,7 +1047,9 @@ def update_forward_kinematics_2(model, data, var, q, param, verbose=0):
                         xyz_rpy[axis_id] += param_dict[key]
                         updated_params.append(key)
         model = update_joint_placement(model, j_id, xyz_rpy)
-    PEE = np.zeros((param["NbMarkers"] * param["calibration_index"], param["NbSample"]))
+    PEE = np.zeros(
+        (param["NbMarkers"] * param["calibration_index"], param["NbSample"])
+    )
 
     # update end_effector frame
     ee_frames = []
@@ -1128,7 +1140,9 @@ def update_forward_kinematics_2(model, data, var, q, param, verbose=0):
     PEE = np.append(PEE, PEE_marker)
 
     # revert model back to original
-    assert origin_model.jointPlacements != model.jointPlacements, "before revert"
+    assert (
+        origin_model.jointPlacements != model.jointPlacements
+    ), "before revert"
     for j_id in param["actJoint_idx"]:
         xyz_rpy = np.zeros(6)
         j_name = model.names[j_id]
@@ -1140,24 +1154,26 @@ def update_forward_kinematics_2(model, data, var, q, param, verbose=0):
                         xyz_rpy[axis_id] = param_dict[key]
         model = update_joint_placement(model, j_id, -xyz_rpy)
 
-    assert origin_model.jointPlacements != model.jointPlacements, "after revert"
+    assert (
+        origin_model.jointPlacements != model.jointPlacements
+    ), "after revert"
 
     return PEE
 
 
 def calc_updated_fkm(model, data, var, q, param, verbose=0):
     """Update forward kinematics with world frame transformations.
-    
+
     Specialized version that explicitly handles transformations between:
     1. World frame to start frame (wMo)
-    2. Start frame to end frame (oMee) 
+    2. Start frame to end frame (oMee)
     3. End frame to marker frame (eeMf)
 
     Args:
         model (pin.Model): Robot model to update
         data (pin.Data): Robot data
         var (ndarray): Parameter vector matching param["param_name"]
-        q (ndarray): Joint configurations matrix (n_samples, n_joints) 
+        q (ndarray): Joint configurations matrix (n_samples, n_joints)
         param (dict): Calibration parameters containing:
             - Frames and parameters from update_forward_kinematics()
             - NbMarkers=1 (only supports single marker)
@@ -1165,7 +1181,7 @@ def calc_updated_fkm(model, data, var, q, param, verbose=0):
 
     Returns:
         ndarray: Flattened marker measurements in world frame
-        
+
     Notes:
         - Excludes joint elasticity effects
         - Requires base or end-effector parameters in param_name
@@ -1314,7 +1330,9 @@ def calc_updated_fkm(model, data, var, q, param, verbose=0):
     PEE = PEE.flatten("C")
 
     # revert model back to original
-    assert origin_model.jointPlacements != model.jointPlacements, "before revert"
+    assert (
+        origin_model.jointPlacements != model.jointPlacements
+    ), "before revert"
     for j_id in param["actJoint_idx"]:
         xyz_rpy = np.zeros(6)
         j_name = model.names[j_id]
@@ -1326,7 +1344,9 @@ def calc_updated_fkm(model, data, var, q, param, verbose=0):
                         xyz_rpy[axis_id] = param_dict[key]
         model = update_joint_placement(model, j_id, -xyz_rpy)
 
-    assert origin_model.jointPlacements != model.jointPlacements, "after revert"
+    assert (
+        origin_model.jointPlacements != model.jointPlacements
+    ), "after revert"
 
     return PEE
 
@@ -1367,8 +1387,8 @@ def update_joint_placement(model, joint_idx, xyz_rpy):
 
 def calculate_kinematics_model(q_i, model, data, param):
     """Calculate Jacobian and kinematic regressor for single configuration.
-    
-    Computes frame Jacobian and kinematic regressor matrices for tool frame 
+
+    Computes frame Jacobian and kinematic regressor matrices for tool frame
     at given joint configuration.
 
     Args:
@@ -1380,15 +1400,19 @@ def calculate_kinematics_model(q_i, model, data, param):
     Returns:
         tuple:
             - model (pin.Model): Updated model
-            - data (pin.Data): Updated data 
+            - data (pin.Data): Updated data
             - R (ndarray): (6,6n) Kinematic regressor matrix
             - J (ndarray): (6,n) Frame Jacobian matrix
     """
     pin.forwardKinematics(model, data, q_i)
     pin.updateFramePlacements(model, data)
 
-    J = pin.computeFrameJacobian(model, data, q_i, param["IDX_TOOL"], pin.LOCAL)
-    R = pin.computeFrameKinematicRegressor(model, data, param["IDX_TOOL"], pin.LOCAL)
+    J = pin.computeFrameJacobian(
+        model, data, q_i, param["IDX_TOOL"], pin.LOCAL
+    )
+    R = pin.computeFrameKinematicRegressor(
+        model, data, param["IDX_TOOL"], pin.LOCAL
+    )
     return model, data, R, J
 
 
@@ -1396,13 +1420,13 @@ def calculate_identifiable_kinematics_model(q, model, data, param):
     """Calculate identifiable Jacobian and regressor matrices.
 
     Builds aggregated Jacobian and regressor matrices from either:
-    1. Given set of configurations, or 
+    1. Given set of configurations, or
     2. Random configurations if none provided
 
     Args:
         q (ndarray, optional): Joint configurations matrix. If empty, uses random configs.
         model (pin.Model): Robot model
-        data (pin.Data): Robot data 
+        data (pin.Data): Robot data
         param (dict): Parameters containing:
             - NbSample: Number of configurations
             - calibration_index: Number of active DOFs
@@ -1411,7 +1435,7 @@ def calculate_identifiable_kinematics_model(q, model, data, param):
 
     Returns:
         ndarray: Either:
-            - Joint offset case: Frame Jacobian matrix 
+            - Joint offset case: Frame Jacobian matrix
             - Full params case: Kinematic regressor matrix
 
     Note:
@@ -1437,13 +1461,17 @@ def calculate_identifiable_kinematics_model(q, model, data, param):
         else:
             q_i = q_temp[i, :]
         if param["start_frame"] == "universe":
-            model, data, Ri, Ji = calculate_kinematics_model(q_i, model, data, param)
+            model, data, Ri, Ji = calculate_kinematics_model(
+                q_i, model, data, param
+            )
         else:
             Ri = get_rel_kinreg(
                 model, data, param["start_frame"], param["end_frame"], q_i
             )
             # Ji = np.zeros([6, model.njoints-1]) ## TODO: get_rel_jac
-            Ji = get_rel_jac(model, data, param["start_frame"], param["end_frame"], q_i)
+            Ji = get_rel_jac(
+                model, data, param["start_frame"], param["end_frame"], q_i
+            )
         for j, state in enumerate(param["measurability"]):
             if state:
                 R[param["NbSample"] * j + i, :] = Ri[j, :]
@@ -1471,11 +1499,11 @@ def calculate_base_kinematics_regressor(q, model, data, param, tol_qr=TOL_QR):
 
     Identifies base (identifiable) parameters by:
     1. Computing regressors with random/given configurations
-    2. Eliminating unidentifiable parameters 
+    2. Eliminating unidentifiable parameters
     3. Finding independent regressor columns
 
     Args:
-        q (ndarray): Joint configurations matrix 
+        q (ndarray): Joint configurations matrix
         model (pin.Model): Robot model
         data (pin.Data): Robot data
         param (dict): Contains calibration settings:
@@ -1486,7 +1514,7 @@ def calculate_base_kinematics_regressor(q, model, data, param, tol_qr=TOL_QR):
     Returns:
         tuple:
             - Rrand_b (ndarray): Base regressor from random configs
-            - R_b (ndarray): Base regressor from given configs  
+            - R_b (ndarray): Base regressor from given configs
             - R_e (ndarray): Full regressor after eliminating unidentifiable params
             - paramsrand_base (list): Names of base parameters from random configs
             - paramsrand_e (list): Names of identifiable parameters
@@ -1536,7 +1564,9 @@ def calculate_base_kinematics_regressor(q, model, data, param, tol_qr=TOL_QR):
     idx_base = get_baseIndex(Rrand_e, paramsrand_e, tol_qr=tol_qr)
 
     # get base regressor and base params from random data
-    Rrand_b, paramsrand_base, _ = get_baseParams(Rrand_e, paramsrand_e, tol_qr=tol_qr)
+    Rrand_b, paramsrand_base, _ = get_baseParams(
+        Rrand_e, paramsrand_e, tol_qr=tol_qr
+    )
 
     # remove non affect columns from GIVEN data
     R_e, params_e = eliminate_non_dynaffect(R_sel, geo_params_sel, tol_e=1e-6)
