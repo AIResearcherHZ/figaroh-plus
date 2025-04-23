@@ -29,7 +29,7 @@ from figaroh.tools.regressor import (
 )
 from figaroh.tools.qrdecomposition import double_QR
 from figaroh.identification.identification_tools import relative_stdev
-from utils.tiago_tools import load_robot
+from figaroh.tools.robot import load_robot
 from datetime import datetime
 import csv
 
@@ -376,7 +376,11 @@ class TiagoIdentification:
 
 
 def main():
-    robot = load_robot(abspath("urdf/tiago_48_schunk.urdf"), load_by_urdf=True)
+    robot = load_robot(
+        abspath("urdf/tiago_48_schunk.urdf"), 
+        load_by_urdf=True, 
+        robot_pkg="tiago_description"
+    )
 
     TiagoIden = TiagoIdentification(robot, "config/tiago_config.yaml")
 

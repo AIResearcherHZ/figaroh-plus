@@ -35,7 +35,7 @@ from figaroh.identification.identification_tools import get_param_from_yaml
 
 from utils.simplified_colission_model import build_tiago_simplified
 from utils.cubic_spline import CubicSpline, WaypointsGeneration, calc_torque
-from utils.tiago_tools import load_robot
+from figaroh.tools.robot import load_robot
 
 # HELPER FUNCTIONS TO OBTAIN BASE REGRESSOR (BASE REG)
 
@@ -368,7 +368,11 @@ def add_options_nlp(nlp):
 start = time.time()
 
 # 1/ Load robot model and create a dictionary containing reserved constants
-robot = load_robot("urdf/tiago_48_schunk.urdf")
+robot = load_robot(
+    "urdf/tiago_48_schunk.urdf",
+    load_by_urdf=True,
+    robot_pkg="tiago_description",
+)
 active_joints = [
     "torso_lift_joint",
     "arm_1_joint",

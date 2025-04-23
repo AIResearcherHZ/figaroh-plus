@@ -3,7 +3,7 @@ import pinocchio as pin
 from gepetto import Color
 import numpy as np
 from os.path import abspath
-from utils.mate_tools import load_robot
+from figaroh.tools.robot import load_robot
 from pinocchio.visualize import GepettoVisualizer
 import time
 
@@ -68,7 +68,8 @@ def add_axis_to_frame(gui, data, model, frame):
         gui.applyConfiguration(axis_name, placement)
 
 
-robot = load_robot("urdf/mate.urdf", load_by_urdf=True)
+robot = load_robot("urdf/mate.urdf", package_dirs="models", load_by_urdf=True)
+
 model = robot.model
 data = robot.model.createData()
 robot.setVisualizer(GepettoVisualizer())

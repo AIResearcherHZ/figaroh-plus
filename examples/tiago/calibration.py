@@ -13,12 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.tiago_tools import TiagoCalibration, load_robot, write_to_xacro
+from utils.tiago_tools import TiagoCalibration, write_to_xacro
+from figaroh.tools.robot import load_robot
 import argparse
 
 
 # load_by_urdf = False, load robot from rospy.get_param(/robot_description)
-tiago = load_robot("urdf/tiago_48_schunk.urdf", load_by_urdf=True)
+tiago = load_robot(
+    "urdf/tiago_48_schunk.urdf",
+    load_by_urdf=True,
+    robot_pkg="tiago_description"
+)
 
 # create a calibration object from config file
 # del_list=[(0, 1)], 0: numbered marker, 1: numbered sample will be removed

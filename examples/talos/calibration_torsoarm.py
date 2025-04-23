@@ -30,7 +30,7 @@ from yaml.loader import SafeLoader
 import pprint
 import csv
 
-from figaroh.tools.robot import Robot
+from figaroh.tools.robot import Robot, load_robot
 
 
 from figaroh.calibration.calibration_tools import (
@@ -51,6 +51,12 @@ robot = Robot(
     "data/talos_full_v2.urdf",
     package_dirs=package_dirs
     # isFext=True  # add free-flyer joint at base
+)
+robot = load_robot(
+    "data/talos_full_v2.urdf",
+    package_dirs=None,
+    load_by_urdf=True,
+    robot_pkg="talos_description",
 )
 model = robot.model
 data = robot.data

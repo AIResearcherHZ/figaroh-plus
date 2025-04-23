@@ -38,18 +38,18 @@ from figaroh.identification.identification_tools import (
     relative_stdev,
     low_pass_filter_data,
 )
+from figaroh.tools.robot import load_robot
 
 
-robot = Robot(
-    "models/staubli_tx40_description/urdf/tx40_mdh_modified.urdf", "models", False
+robot = load_robot(
+    "urdf/tx40_mdh_modified.urdf", package_dirs="models"
 )
-
 model = robot.model
 data = robot.data
 
 nq, nv, njoints = model.nq, model.nv, model.njoints
 
-with open("examples/staubli_TX40/config/T40X_config.yaml", "r") as f:
+with open("config/TX40_config.yaml", "r") as f:
     config = yaml.load(f, Loader=SafeLoader)
     pprint.pprint(config)
 
@@ -104,8 +104,8 @@ for ii in range(len(params_base)):
 
 f_sample = 1 / params_settings["ts"]
 
-curr_data = pd.read_csv("examples/staubli_TX40/data/curr_data.csv").to_numpy()
-pos_data = pd.read_csv("examples/staubli_TX40/data/pos_read_data.csv").to_numpy()
+curr_data = pd.read_csv("data/curr_data.csv").to_numpy()
+pos_data = pd.read_csv("data/pos_read_data.csv").to_numpy()
 # Nyquist freq/0.5*sampling rate fs = 0.5 *5 kHz
 
 N_robot = params_settings["N"]

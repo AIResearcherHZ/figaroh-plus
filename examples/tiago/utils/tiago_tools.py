@@ -398,40 +398,6 @@ class TiagoCalibration:
             ax4.grid()
 
 
-def load_robot(robot_urdf, package_dirs=None, isFext=False, load_by_urdf=True):
-    """
-    Load the robot model from the URDF file.
-    """
-    import pinocchio
-    import rospkg
-
-    if load_by_urdf:
-        # import os
-        # ros_package_path = os.getenv('ROS_PACKAGE_PATH')
-        # package_dirs = ros_package_path.split(':')
-
-        package_dirs = rospkg.RosPack().get_path("tiago_description")
-        robot = Robot(
-            robot_urdf,
-            package_dirs=package_dirs,
-            isFext=isFext,
-        )
-    else:
-        import rospy
-        from pinocchio.robot_wrapper import RobotWrapper
-
-        robot_xml = rospy.get_param("robot_description")
-        if isFext:
-            robot = RobotWrapper(
-                pinocchio.buildModelFromXML(
-                    robot_xml, root_joint=pinocchio.JointModelFreeFlyer()
-                )
-            )
-        else:
-            robot = RobotWrapper(pinocchio.buildModelFromXML(robot_xml))
-    return robot
-
-
 def write_to_xacro(tiago_calib, file_name=None, file_type="yaml"):
     """
     Write calibration result to xacro file.

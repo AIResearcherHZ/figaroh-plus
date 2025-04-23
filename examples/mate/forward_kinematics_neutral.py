@@ -6,7 +6,8 @@ from pinocchio.visualize import GepettoVisualizer
 from figaroh.tools.robot import Robot
 import sys
 import os
-from utils.mate_tools import load_robot
+from figaroh.tools.robot import load_robot
+
 import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -29,7 +30,7 @@ def place(viz, name, M):
     viz.viewer.gui.refresh()
 
 
-robot = load_robot("urdf/mate.urdf", load_by_urdf=True)
+robot = load_robot("urdf/mate.urdf", package_dirs="models", load_by_urdf=True)
 
 model = robot.model
 data = robot.data

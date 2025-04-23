@@ -14,12 +14,13 @@
 # limitations under the License.
 
 
-from utils.mate_tools import MateCalibration, load_robot
+from figaroh.tools.robot import load_robot
+from utils.mate_tools import tiago_master_calibration
 from pinocchio.visualize import GepettoVisualizer
 import time
 
 # load_by_urdf = False, load robot from rospy.get_param(/robot_description)
-robot = load_robot("urdf/mate.urdf", load_by_urdf=True)
+robot = load_robot("urdf/mate.urdf", package_dirs="models", load_by_urdf=True)
 
 robot_calib = MateCalibration(robot, "config/mate.yaml", del_list=[])
 robot_calib.param["known_baseframe"] = False

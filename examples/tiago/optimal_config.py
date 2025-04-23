@@ -25,7 +25,8 @@ from figaroh.calibration.calibration_tools import (
     calculate_base_kinematics_regressor,
     rank_in_configuration,
 )
-from utils.tiago_tools import load_robot, TiagoCalibration
+from utils.tiago_tools import TiagoCalibration
+from figaroh.tools.robot import load_robot
 
 
 def rearrange_rb(R_b, param):
@@ -390,6 +391,7 @@ def main():
     tiago = load_robot(
         "urdf/tiago_48_{}.urdf".format(end_effector),
         load_by_urdf=True,
+        robot_pkg="tiago_description",
     )
 
     tiago_optcalib = TiagoOptimalCalibration(

@@ -14,18 +14,19 @@
 # limitations under the License.
 
 
-from utils.mate_tools import MateCalibration, load_robot
+from utils.mate_tools import MateCalibration
 from pinocchio.visualize import GepettoVisualizer
 import time
 from figaroh.calibration.calibration_tools import (
     update_forward_kinematics,
     get_LMvariables,
 )
+from figaroh.tools.robot import load_robot
 import numpy as np
 from scipy.optimize import least_squares
 
 # load_by_urdf = False, load robot from rospy.get_param(/robot_description)
-robot = load_robot("urdf/mate.urdf", load_by_urdf=True)
+robot = load_robot("urdf/mate.urdf", package_dirs="models", load_by_urdf=True)
 model = robot.model
 data = robot.data
 

@@ -16,7 +16,7 @@
 import pinocchio as pin
 import numpy as np
 import csv
-from figaroh.tools.robot import Robot
+from figaroh.tools.robot import Robot, load_robot
 from figaroh.tools.regressor import (
     build_regressor_basic,
     get_index_eliminate,
@@ -35,13 +35,10 @@ import yaml
 from yaml.loader import SafeLoader
 
 # 1/ Load robot model and create a dictionary containing reserved constants
-ros_package_path = os.getenv("ROS_PACKAGE_PATH")
-package_dirs = ros_package_path.split(":")
-
-robot = Robot(
+robot = load_robot(
     "data/robot.urdf",
-    package_dirs=package_dirs
-    # isFext=True  # add free-flyer joint at base
+    package_dirs="models",
+    load_by_urdf=True,
 )
 model = robot.model
 data = robot.data

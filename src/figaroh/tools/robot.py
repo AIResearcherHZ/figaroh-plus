@@ -180,21 +180,53 @@ class Robot(RobotWrapper):
 def load_robot(robot_urdf, package_dirs=None, isFext=False, load_by_urdf=True, robot_pkg=None):
     """
     Load the robot model from the URDF file.
+Args:
+        robot_urdf (str): Path to the URDF file.
+        package_dirs (str): Package directories for mesh files.
+        isFext (bool): Whether to add floating base joint.
+        load_by_urdf (bool): Whether to load the robot by URDF.
+        robot_pkg (str): Name of the robot package.
+    Returns:
+        Robot: An instance of the Robot class.
+    
+    Raises:
+        ImportError: If the required packages are not installed.
+
+    Note: For loading by URDF, robot_urdf and package_dirs can be different.
+          1/ If package_dirs is not provided directly, robot_pkg is used to
+          look up the package directory.
+            - If the robot description ROS package is
+          installed, the path to this package will be used
+          to load the robot model.
+            - If not, it will be loaded from /models directory.
+          2/ There is no mesh files, package_dirs and robot_pkg are not used.
+          3/ If load_by_urdf is False, the robot is loaded from the ROS
+          parameter server.
     """
-    import pinocchio
+    import os
     import rospkg
 
     if load_by_urdf:
-        # import os
-        # ros_package_path = os.getenv('ROS_PACKAGE_PATH')
-        # package_dirs = ros_package_path.split(':')
+        if package_dirs is None:
+            if robot_pkg is not None:
+                try:
+                    package_dirs = rospkg.RosPack().get_path(robot_pkg)
+                except rospkg.ResourceNotFound:
+                    # Resolve relative path to models directory
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+                    package_dirs = os.path.join(project_root, "models")
+            else:
+                package_dirs = os.path.dirname(os.path.dirname(robot_urdf))
+        elif package_dirs == "models":
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+            package_dirs = os.path.join(project_root, "models")
 
-        package_dirs = rospkg.RosPack().get_path(robot_pkg)
-        robot = Robot(
-            robot_urdf,
-            package_dirs=package_dirs,
-            isFext=isFext,
-        )
+        if not os.path.exists(robot_urdf):
+            raise FileNotFoundError(f"URDF file not found: {robot_urdf}")
+
+        robot = Robot(robot_urdf, package_dirs=package_dirs, isFext=isFext)
     else:
         import rospy
         from pinocchio.robot_wrapper import RobotWrapper

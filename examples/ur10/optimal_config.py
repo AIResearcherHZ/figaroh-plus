@@ -32,7 +32,7 @@ from figaroh.calibration.calibration_tools import (
     get_param_from_yaml,
     calculate_base_kinematics_regressor,
 )
-from figaroh.tools.robot import Robot
+from figaroh.tools.robot import Robot, load_robot
 
 
 def rearrange_rb(R_b, param):
@@ -168,13 +168,10 @@ class SOCP:
 
 
 # # 1/ Load robot model and create a dictionary containing reserved constants
-ros_package_path = os.getenv("ROS_PACKAGE_PATH")
-package_dirs = ros_package_path.split(":")
-
-robot = Robot(
+robot = load_robot(
     "data/robot.urdf",
-    package_dirs=package_dirs
-    # isFext=True  # add free-flyer joint at base
+    package_dirs="models",
+    load_by_urdf=True,
 )
 model = robot.model
 data = robot.data
