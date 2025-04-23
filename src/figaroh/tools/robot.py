@@ -175,3 +175,37 @@ class Robot(RobotWrapper):
             q = self.q0
 
             self.display(q)
+
+
+def load_robot(robot_urdf, package_dirs=None, isFext=False, load_by_urdf=True, robot_pkg=None):
+    """
+    Load the robot model from the URDF file.
+    """
+    import pinocchio
+    import rospkg
+
+    if load_by_urdf:
+        # import os
+        # ros_package_path = os.getenv('ROS_PACKAGE_PATH')
+        # package_dirs = ros_package_path.split(':')
+
+        package_dirs = rospkg.RosPack().get_path(robot_pkg)
+        robot = Robot(
+            robot_urdf,
+            package_dirs=package_dirs,
+            isFext=isFext,
+        )
+    else:
+        import rospy
+        from pinocchio.robot_wrapper import RobotWrapper
+
+        robot_xml = rospy.get_param("robot_description")
+        if isFext:
+            robot = RobotWrapper(
+                pinocchio.buildModelFromXML(
+                    robot_xml, root_joint=pinocchio.JointModelFreeFlyer()
+                )
+            )
+        else:
+            robot = RobotWrapper(pinocchio.buildModelFromXML(robot_xml))
+    return robot
