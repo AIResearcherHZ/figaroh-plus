@@ -17,7 +17,7 @@ import os
 from os.path import dirname, join, abspath
 
 import pinocchio as pin
-from figaroh.meshcat_viewer_wrapper import MeshcatVisualizer
+from figaroh.visualisation.visualizer import MeshcatVisualizer
 
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D

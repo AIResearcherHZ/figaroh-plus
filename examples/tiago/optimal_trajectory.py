@@ -30,7 +30,7 @@ from figaroh.tools.regressor import (
 )
 from figaroh.tools.qrdecomposition import get_baseIndex, build_baseRegressor
 from figaroh.tools.robotcollisions import CollisionWrapper
-from figaroh.meshcat_viewer_wrapper.visualizer import MeshcatVisualizer
+from figaroh.visualisation.visualizer import MeshcatVisualizer
 from figaroh.identification.identification_tools import get_param_from_yaml
 
 from utils.simplified_colission_model import build_tiago_simplified

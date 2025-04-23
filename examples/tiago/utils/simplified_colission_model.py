@@ -19,7 +19,7 @@ import pinocchio as pin
 import time
 
 from figaroh.tools.robotcollisions import CollisionWrapper
-from figaroh.meshcat_viewer_wrapper.visualizer import MeshcatVisualizer
+from figaroh.visualisation.visualizer import MeshcatVisualizer
 
 from os.path import dirname, join, abspath
 
