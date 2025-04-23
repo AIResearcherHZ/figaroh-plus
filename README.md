@@ -2,13 +2,15 @@
 (Free dynamics Identification and Geometrical cAlibration of RObot and Human)
 FIGAROH is a python toolbox aiming at providing efficient and highly flexible frameworks for dynamics identification and geometric calibration of rigid multi-body systems based on the popular modeling convention URDF. The considered systems can be serial (industrial manipulator) or tree-structures (human, humanoid robots).
 
-## Installation
+Note: This repo is a fork from [gitlab repo](https://gitlab.laas.fr/gepetto/figaroh) of which the author is no longer a contributor.
 
+## Installation
+<!-- 
 ### Prerequisites
 Install the following dependencies using conda:
 ```bash
 conda install -c conda-forge pinocchio
-```
+``` -->
 
 ### Package Installation
 
@@ -22,6 +24,18 @@ conda activate figaroh-dev
 ```bash
 pip install -e .
 ```
+## Prerequisites
+The following packages are required:
+* numpy
+* scipy
+* matplotlib
+* pinocchio (conda install)
+* cyipopt (conda install)
+* numdifftools
+* meshcat
+* rospkg
+* pandas
+* quadprog
 
 ## Features
 ![figaroh_features](figaroh_flowchart.png)
@@ -111,7 +125,7 @@ A step-by-step procedure is presented as follow.
     Dedicated template scripts ```calibration.py``` and ```identification.py``` are provided. Users needs to fill in essential parts to adapt to their systems. At the end, calibration/identification results will be displayed with visualization and statistical analysis. Then, it is up to users to justify the quality of calibration/identification based on their needs.
 + Step 5: Update model with identified parameters.\
     Once the results are accepted, users can update calibrated/identified parameters to their urdf model by scripts ```update_model.py``` or simply save to a ```xacro``` file for later usage.
-## Examples (TODO: input link)
+<!-- ## Examples (TODO: input link)
 ### 1/ Human model
 ### 2/ Industrial manipulator Staubli TX40
 ### 3/ Industrial manipulator Universal UR10
@@ -121,17 +135,5 @@ A step-by-step procedure is presented as follow.
 + Identification tools
 + Measurements
 + Meshcat viewer
-+ Common tools
-## Prerequisites
-The following packages are required:
-* numpy
-* scipy
-* numdifftools
-* cyipopt
-* matplotlib
-* meshcat
-* example-robot-data
-* pinocchio (conda install)
-## Reference
-+ Pinocchio (source)
-+ Ipopt (source)
++ Common tools -->
+
