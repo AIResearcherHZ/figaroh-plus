@@ -13,10 +13,12 @@ dependencies = [
     "numpy",
     "scipy",
     "numdifftools",
-    "example-robot-data",
+    "ndcurves",
     "matplotlib",
     "meshcat",
-    "cyipopt",
+    "pandas",
+    "rospkg",
+    "quadprog",
 ]
 
 [tool.hatch.build.targets.wheel]
