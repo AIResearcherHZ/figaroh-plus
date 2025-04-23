@@ -16,6 +16,10 @@
 import numpy as np
 import pinocchio as pin
 import pprint
+import yaml
+from yaml.loader import SafeLoader
+from os.path import abspath
+import matplotlib.pyplot as plt
 
 # import quadprog as qp
 import pandas as pd
@@ -1589,3 +1593,245 @@ def calculate_base_kinematics_regressor(q, model, data, param, tol_qr=TOL_QR):
         Rrand_b.shape,
     )
     return Rrand_b, R_b, R_e, paramsrand_base, paramsrand_e
+
+
+class BaseCalibration:
+    def __init__(self, robot, config_file, del_list=[]):
+        self._robot = robot
+        self.model = self._robot.model
+        self.data = self._robot.data
+        self.del_list_ = del_list
+        self.param = None
+        self.load_param(config_file)
+        self.nvars = len(self.param["param_name"])
+        self._data_path = abspath(self.param["data_file"])
+        self.STATUS = "NOT CALIBRATED"
+
+    def initialize(self):
+        self.load_data_set()
+        self.create_param_list()
+
+    def solve(self):
+        self.solve_optimisation()
+        self.calc_stddev()
+        if self.param["PLOT"]:
+            self.plot()
+
+    def plot(self):
+        self.plot_errors_distribution()
+        self.plot_3d_poses()
+        self.plot_joint_configurations()
+        plt.show()
+
+    def load_param(self, config_file, setting_type="calibration"):
+        with open(config_file, "r") as f:
+            config = yaml.load(f, Loader=SafeLoader)
+        calib_data = config[setting_type]
+        self.param = get_param_from_yaml(self._robot, calib_data)
+
+    def create_param_list(self, q=None):
+        if q is None:
+            q_ = []
+        else:
+            q_ = q
+        (
+            Rrand_b,
+            R_b,
+            R_e,
+            paramsrand_base,
+            paramsrand_e,
+        ) = calculate_base_kinematics_regressor(
+            q_, self.model, self.data, self.param, tol_qr=1e-6
+        )
+        if self.param["known_baseframe"] is False:
+            add_base_name(self.param)
+        if self.param["known_tipframe"] is False:
+            add_pee_name(self.param)
+        return True
+
+    def load_data_set(self):
+        self.PEE_measured, self.q_measured = load_data(
+            self._data_path, self.model, self.param, self.del_list_
+        )
+
+    def load_calibration_param(self, param_file):
+        with open(param_file, "r") as param_file:
+            param_dict_ = yaml.load(param_file, Loader=SafeLoader)
+        assert len(self.param["param_name"]) == len(
+            param_dict_
+        ), "The loaded param list does not match calibration config."
+        self.var_ = np.zeros(len(self.param["param_name"]))
+        updated_var_ = []
+        for i_, name_ in enumerate(self.param["param_name"]):
+            assert name_ == list(param_dict_.keys())[i_]
+            self.var_[i_] = list(param_dict_.values())[i_]
+            updated_var_.append(name_)
+        assert len(updated_var_) == len(self.var_), "Not all param imported."
+        
+    def validate_model(self):
+        assert (
+            self.var_ is not None
+        ), "Call load_calibration_param() to load model parameters first."
+        pee_valid_ = self.get_pose_from_measure(self.var_)
+        rmse_ = np.sqrt(np.mean((pee_valid_ - self.PEE_measured) ** 2))
+        mae_ = np.mean(np.abs(pee_valid_ - self.PEE_measured))
+        print("position root-mean-squared error of end-effector: ", rmse_)
+        print("position mean absolute error of end-effector: ", mae_)
+        return rmse_, mae_
+
+
+    def get_pose_from_measure(self, res_):
+        """
+        Get the pose of the robot given a set of parameters.
+        """
+        return calc_updated_fkm(
+            self.model, self.data, res_, self.q_measured, self.param
+        )
+
+    def calc_stddev(self):
+        """
+        Calculate the standard deviation of the calibrated parameters.
+        """
+        assert self.STATUS == "CALIBRATED", "Calibration not performed yet"
+        sigma_ro_sq = (self.LM_result.cost**2) / (
+            self.param["NbSample"] * self.param["calibration_index"] - self.nvars
+        )
+        J = self.LM_result.jac
+        C_param = sigma_ro_sq * np.linalg.pinv(np.dot(J.T, J))
+        std_dev = []
+        std_pctg = []
+        for i_ in range(self.nvars):
+            std_dev.append(np.sqrt(C_param[i_, i_]))
+            std_pctg.append(abs(np.sqrt(C_param[i_, i_]) / self.LM_result.x[i_]))
+        self.std_dev = std_dev
+        self.std_pctg = std_pctg
+
+    def plot_errors_distribution(self):
+        """
+        Plot the distribution of the errors.
+        """
+        assert self.STATUS == "CALIBRATED", "Calibration not performed yet"
+
+        fig1, ax1 = plt.subplots(self.param["NbMarkers"], 1)
+        colors = ["blue", "red", "yellow", "purple"]
+
+        if self.param["NbMarkers"] == 1:
+            ax1.bar(np.arange(self.param["NbSample"]), self._PEE_dist[0, :])
+            ax1.set_xlabel("Sample", fontsize=25)
+            ax1.set_ylabel("Error (meter)", fontsize=30)
+            ax1.tick_params(axis="both", labelsize=30)
+            ax1.grid()
+        else:
+            for i in range(self.param["NbMarkers"]):
+                ax1[i].bar(
+                    np.arange(self.param["NbSample"]),
+                    self._PEE_dist[i, :],
+                    color=colors[i],
+                )
+                ax1[i].set_xlabel("Sample", fontsize=25)
+                ax1[i].set_ylabel("Error of marker %s (meter)" % (i + 1), fontsize=25)
+                ax1[i].tick_params(axis="both", labelsize=30)
+                ax1[i].grid()
+
+    def plot_3d_poses(self, INCLUDE_UNCALIB=False):
+        """
+        Plot the 3D poses of the robot.
+        """
+        assert self.STATUS == "CALIBRATED", "Calibration not performed yet"
+
+        fig2 = plt.figure()
+        fig2.suptitle("Visualization of estimated poses and measured pose in Cartesian")
+        ax2 = fig2.add_subplot(111, projection="3d")
+        PEEm_LM2d = self.PEE_measured.reshape(
+            (
+                self.param["NbMarkers"] * self.param["calibration_index"],
+                self.param["NbSample"],
+            )
+        )
+        PEEe_sol = self.get_pose_from_measure(self.LM_result.x)
+        PEEe_sol2d = PEEe_sol.reshape(
+            (
+                self.param["NbMarkers"] * self.param["calibration_index"],
+                self.param["NbSample"],
+            )
+        )
+        PEEe_uncalib = self.get_pose_from_measure(self._var_0)
+        PEEe_uncalib2d = PEEe_uncalib.reshape(
+            (
+                self.param["NbMarkers"] * self.param["calibration_index"],
+                self.param["NbSample"],
+            )
+        )
+        for i in range(self.param["NbMarkers"]):
+            ax2.scatter3D(
+                PEEm_LM2d[i * 3, :],
+                PEEm_LM2d[i * 3 + 1, :],
+                PEEm_LM2d[i * 3 + 2, :],
+                marker="^",
+                color="blue",
+                label="Measured",
+            )
+            ax2.scatter3D(
+                PEEe_sol2d[i * 3, :],
+                PEEe_sol2d[i * 3 + 1, :],
+                PEEe_sol2d[i * 3 + 2, :],
+                marker="o",
+                color="red",
+                label="Estimated",
+            )
+            if INCLUDE_UNCALIB:
+                ax2.scatter3D(
+                    PEEe_uncalib2d[i * 3, :],
+                    PEEe_uncalib2d[i * 3 + 1, :],
+                    PEEe_uncalib2d[i * 3 + 2, :],
+                    marker="x",
+                    color="green",
+                    label="Uncalibrated",
+                )
+            for j in range(self.param["NbSample"]):
+                ax2.plot3D(
+                    [PEEm_LM2d[i * 3, j], PEEe_sol2d[i * 3, j]],
+                    [PEEm_LM2d[i * 3 + 1, j], PEEe_sol2d[i * 3 + 1, j]],
+                    [PEEm_LM2d[i * 3 + 2, j], PEEe_sol2d[i * 3 + 2, j]],
+                    color="red",
+                )
+                if INCLUDE_UNCALIB:
+                    ax2.plot3D(
+                        [PEEm_LM2d[i * 3, j], PEEe_uncalib2d[i * 3, j]],
+                        [
+                            PEEm_LM2d[i * 3 + 1, j],
+                            PEEe_uncalib2d[i * 3 + 1, j],
+                        ],
+                        [
+                            PEEm_LM2d[i * 3 + 2, j],
+                            PEEe_uncalib2d[i * 3 + 2, j],
+                        ],
+                        color="green",
+                    )
+        ax2.set_xlabel("X - front (meter)")
+        ax2.set_ylabel("Y - side (meter)")
+        ax2.set_zlabel("Z - height (meter)")
+        ax2.grid()
+        ax2.legend()
+
+    def plot_joint_configurations(self):
+        """
+        Joint configurations within range bound.
+        """
+        fig4 = plt.figure()
+        fig4.suptitle("Joint configurations with joint bounds")
+        ax4 = fig4.add_subplot(111, projection="3d")
+        lb = ub = []
+        for j in self.param["config_idx"]:
+            lb = np.append(lb, self.model.lowerPositionLimit[j])
+            ub = np.append(ub, self.model.upperPositionLimit[j])
+        q_actJoint = self.q_measured[:, self.param["config_idx"]]
+        sample_range = np.arange(self.param["NbSample"])
+        for i in range(len(self.param["actJoint_idx"])):
+            ax4.scatter3D(q_actJoint[:, i], sample_range, i)
+        for i in range(len(self.param["actJoint_idx"])):
+            ax4.plot([lb[i], ub[i]], [sample_range[0], sample_range[0]], [i, i])
+            ax4.set_xlabel("Angle (rad)")
+            ax4.set_ylabel("Sample")
+            ax4.set_zlabel("Joint")
+            ax4.grid()

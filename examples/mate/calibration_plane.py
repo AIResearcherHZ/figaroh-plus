@@ -32,10 +32,11 @@ data = robot.data
 
 
 mate_xyz = MateCalibration(robot, "config/mate.yaml", del_list=[])
-mate_xyz.create_param_list()
-params_list = mate_xyz.param["param_name"]
 mate_xyz.param["known_baseframe"] = False
 mate_xyz.param["known_tipframe"] = False
+mate_xyz.create_param_list()
+params_list = mate_xyz.param["param_name"]
+
 
 mate_x = MateCalibration(robot, "config/mate_x.yaml", del_list=[])
 mate_y = MateCalibration(robot, "config/mate_y.yaml", del_list=[])

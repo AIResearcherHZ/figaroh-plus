@@ -15,7 +15,7 @@
 
 
 from figaroh.tools.robot import load_robot
-from utils.mate_tools import tiago_master_calibration
+from utils.mate_tools import MateCalibration
 from pinocchio.visualize import GepettoVisualizer
 import time
 
