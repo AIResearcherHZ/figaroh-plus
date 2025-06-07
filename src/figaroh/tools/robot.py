@@ -217,7 +217,7 @@ Args:
                     project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
                     package_dirs = os.path.join(project_root, "models")
             else:
-                package_dirs = os.path.dirname(os.path.dirname(robot_urdf))
+                package_dirs = os.path.dirname(os.path.abspath(robot_urdf))
         elif package_dirs == "models":
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
