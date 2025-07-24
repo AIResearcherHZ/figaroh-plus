@@ -5,10 +5,41 @@ build-backend = "hatchling.build"
 [project]
 name = "figaroh"
 version = "0.1.0"
-description = "Robot and Human Identification Tools"
+description = "A Python toolbox for dynamics identification and geometric calibration of robots and humans"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
+authors = [
+    { name = "Thanh D. V. Nguyen", email = "thanhndv212@gmail.com" },
+]
+maintainers = [
+    { name = "Thanh D. V. Nguyen", email = "thanhndv212@gmail.com" },
+]
+keywords = [
+    "robotics",
+    "dynamics",
+    "calibration",
+    "identification",
+    "urdf",
+    "pinocchio",
+    "optimization",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "numpy",
     "scipy",
@@ -19,6 +50,38 @@ dependencies = [
     "pandas",
     "rospkg",
     "quadprog",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "black",
+    "isort",
+    "flake8",
+    "mypy",
+    "pre-commit",
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinx-autodoc-typehints",
+]
+examples = [
+    "opencv-python>=4.5.0",
+    "opencv-contrib-python>=4.5.0",
+    "pillow",
+    "pyyaml",
+    "tqdm",
+    "plotly",
+    "jupyter",
+    "notebook",
+    "ipywidgets",
+    "transforms3d",
+    "open3d",
+    "trimesh",
+    "ipympl",
+    "seaborn",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -39,3 +102,10 @@ Homepage = "https://github.com/thanhndv212/figaroh"
 Repository = "https://github.com/thanhndv212/figaroh"
 Issues = "https://github.com/thanhndv212/figaroh/issues"
 Examples = "https://github.com/thanhndv212/figaroh-examples"
+
+# Uncomment if you have CLI tools
+# [project.scripts]
+# figaroh = "figaroh.cli:main"
+
+# [project.gui-scripts]
+# figaroh-gui = "figaroh.gui:main"
