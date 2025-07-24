@@ -5,23 +5,41 @@ FIGAROH is a python toolbox aiming at providing efficient and highly flexible fr
 Note: This repo is a fork from [gitlab repo](https://gitlab.laas.fr/gepetto/figaroh) of which the author is no longer a contributor.
 
 ## Installation
-<!-- 
-### Prerequisites
-Install the following dependencies using conda:
-```bash
-conda install -c conda-forge pinocchio
-``` -->
 
 ### Package Installation
 
-1. Create and activate the conda environment:
+Install the core FIGAROH package:
+
+```bash
+# Option 1: Install from PyPI (when available)
+pip install figaroh
+
+# Option 2: Install from source
+git clone https://github.com/thanhndv212/figaroh.git
+cd figaroh
+pip install -e .
+```
+
+### Examples and Tutorials
+
+Examples are maintained in a separate repository to keep the core package lightweight:
+
+```bash
+# Clone examples repository
+git clone https://github.com/thanhndv212/figaroh-examples.git
+cd figaroh-examples
+
+# Install additional dependencies for examples
+pip install -r requirements.txt
+```
+
+### Development Environment
+
+For development with all dependencies:
+
 ```bash
 conda env create -f environment.yml
 conda activate figaroh-dev
-```
-
-2. Install the package in development mode:
-```bash
 pip install -e .
 ```
 ## Prerequisites
@@ -125,26 +143,23 @@ A step-by-step procedure is presented as follow.
     Dedicated template scripts ```calibration.py``` and ```identification.py``` are provided. Users needs to fill in essential parts to adapt to their systems. At the end, calibration/identification results will be displayed with visualization and statistical analysis. Then, it is up to users to justify the quality of calibration/identification based on their needs.
 + Step 5: Update model with identified parameters.\
     Once the results are accepted, users can update calibrated/identified parameters to their urdf model by scripts ```update_model.py``` or simply save to a ```xacro``` file for later usage.
-## [Examples](examples)
-- Human modeling:
-    - Joint center estimation
-    - Segment inertial identification
-- Industrial manipulator Staubli TX40:
-    - Dynamic inertial parameters identification
-- Industrial manipulator Universal UR10:
-    - Geometric calibration using realsense camera and checker board
-- 3D-printed 3DOF manipulator MATE:
-    - Geometric calibration using aruco markers
-- Mobile manipulator TIAGo:
-    - Dynamic inertial parameters identification (including friction model, actuator inertia)
-    - Geometric calibration using:
-        - Motion capture
-        - Onboard head camera and checker board
-    - Mobile base suspension modeling and parameter identification
-    - Arm joint backlash modeling and identification
-- Humanoid TALOS:
-    - Torso-Arm geometric calibration using motion capture
-    - Whole-body geometric calibration with onboard sensors and 3-points plane-constrained contacts with a single plane
+## Examples
+
+Complete examples and tutorials are available in a separate repository: [figaroh-examples](https://github.com/thanhndv212/figaroh-examples)
+
+The examples include:
+- **Human modeling**: Joint center estimation, segment inertial identification
+- **Industrial manipulator Staubli TX40**: Dynamic inertial parameters identification
+- **Industrial manipulator Universal UR10**: Geometric calibration using RealSense camera and checkerboard
+- **3D-printed 3DOF manipulator MATE**: Geometric calibration using ArUco markers
+- **Mobile manipulator TIAGo**: Dynamic identification, geometric calibration, mobile base modeling
+- **Humanoid TALOS**: Torso-arm geometric calibration, whole-body calibration
+
+Each example includes:
+- Configuration files
+- Sample data
+- Complete workflows
+- URDF models (when needed)
 ## Citations
 
 If you use FIGAROH in your research, please cite the following papers:

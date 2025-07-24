@@ -1,0 +1,13 @@
+# Core FIGAROH dependencies
+numpy
+scipy
+numdifftools
+ndcurves
+matplotlib
+meshcat
+pandas
+rospkg
+quadprog
+
+# Note: pinocchio and cyipopt should be installed via conda:
+# conda install -c conda-forge pinocchio cyipopt
