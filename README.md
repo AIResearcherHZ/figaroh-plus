@@ -125,15 +125,65 @@ A step-by-step procedure is presented as follow.
     Dedicated template scripts ```calibration.py``` and ```identification.py``` are provided. Users needs to fill in essential parts to adapt to their systems. At the end, calibration/identification results will be displayed with visualization and statistical analysis. Then, it is up to users to justify the quality of calibration/identification based on their needs.
 + Step 5: Update model with identified parameters.\
     Once the results are accepted, users can update calibrated/identified parameters to their urdf model by scripts ```update_model.py``` or simply save to a ```xacro``` file for later usage.
-<!-- ## Examples (TODO: input link)
-### 1/ Human model
-### 2/ Industrial manipulator Staubli TX40
-### 3/ Industrial manipulator Universal UR10
-### 4/ Mobile base manipulator TIAGo
-## Tools (TODO: explanation for main methods)
-+ Calibration tools
-+ Identification tools
-+ Measurements
-+ Meshcat viewer
-+ Common tools -->
+## [Examples](examples)
+- Human modeling:
+    - Joint center estimation
+    - Segment inertial identification
+- Industrial manipulator Staubli TX40:
+    - Dynamic inertial parameters identification
+- Industrial manipulator Universal UR10:
+    - Geometric calibration using realsense camera and checker board
+- 3D-printed 3DOF manipulator MATE:
+    - Geometric calibration using aruco markers
+- Mobile manipulator TIAGo:
+    - Dynamic inertial parameters identification (including friction model, actuator inertia)
+    - Geometric calibration using:
+        - Motion capture
+        - Onboard head camera and checker board
+    - Mobile base suspension modeling and parameter identification
+    - Arm joint backlash modeling and identification
+- Humanoid TALOS:
+    - Torso-Arm geometric calibration using motion capture
+    - Whole-body geometric calibration with onboard sensors and 3-points plane-constrained contacts with a single plane
+## Citations
 
+If you use FIGAROH in your research, please cite the following papers:
+
+### Main Reference
+```bibtex
+@inproceedings{nguyen2023figaroh,
+  title={FIGAROH: a Python toolbox for dynamic identification and geometric calibration of robots and humans},
+  author={Nguyen, Dinh Vinh Thanh and Bonnet, Vincent and Maxime, Sabbah and Gautier, Maxime and Fernbach, Pierre and others},
+  booktitle={IEEE-RAS International Conference on Humanoid Robots},
+  pages={1--8},
+  year={2023},
+  address={Austin, TX, United States},
+  doi={10.1109/Humanoids57100.2023.10375232},
+  url={https://hal.science/hal-04234676v2}
+}
+```
+
+### Related Work
+```bibtex
+@inproceedings{nguyen2024improving,
+  title={Improving Operational Accuracy of a Mobile Manipulator by Modeling Geometric and Non-Geometric Parameters},
+  author={Nguyen, Thanh D. V. and Bonnet, V. and Fernbach, P. and Flayols, T. and Lamiraux, F.},
+  booktitle={2024 IEEE-RAS 23rd International Conference on Humanoid Robots (Humanoids)},
+  pages={965--972},
+  year={2024},
+  address={Nancy, France},
+  doi={10.1109/Humanoids58906.2024.10769790}
+}
+
+@techreport{nguyen2025humanoid,
+  title={Humanoid Robot Whole-body Geometric Calibration with Embedded Sensors and a Single Plane},
+  author={Nguyen, Thanh D V and Bonnet, Vincent and Fernbach, Pierre and Daney, David and Lamiraux, Florent},
+  year={2025},
+  institution={HAL},
+  url={https://hal.science/hal-05169055}
+}
+```
+
+## License
+
+Please refer to the [LICENSE](LICENSE) file for licensing information.
