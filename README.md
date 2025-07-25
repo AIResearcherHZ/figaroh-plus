@@ -1,6 +1,9 @@
 # FIGAROH
 (Free dynamics Identification and Geometrical cAlibration of RObot and Human)
-FIGAROH is a python toolbox aiming at providing efficient and highly flexible frameworks for dynamics identification and geometric calibration of rigid multi-body systems based on the popular modeling convention URDF. The considered systems can be serial (industrial manipulator) or tree-structures (human, humanoid robots).
+
+FIGAROH is a Python toolbox providing efficient and highly flexible frameworks for dynamics identification and geometric calibration of rigid multi-body systems based on the popular modeling convention URDF. The considered systems can be serial (industrial manipulator) or tree-structures (human, humanoid robots).
+
+**📦 Available on PyPI:** `pip install figaroh`
 
 Note: This repo is a fork from [gitlab repo](https://gitlab.laas.fr/gepetto/figaroh) of which the author is no longer a contributor.
 
@@ -11,10 +14,10 @@ Note: This repo is a fork from [gitlab repo](https://gitlab.laas.fr/gepetto/figa
 Install the core FIGAROH package:
 
 ```bash
-# Option 1: Install from PyPI (when available)
+# Install from PyPI
 pip install figaroh
 
-# Option 2: Install from source
+# Or install from source
 git clone https://github.com/thanhndv212/figaroh.git
 cd figaroh
 pip install -e .
@@ -43,17 +46,22 @@ conda activate figaroh-dev
 pip install -e .
 ```
 ## Prerequisites
-The following packages are required:
+
+FIGAROH has the following core dependencies (automatically installed with pip):
 * numpy
 * scipy
 * matplotlib
-* pinocchio (conda install)
-* cyipopt (conda install)
 * numdifftools
+* ndcurves
 * meshcat
 * rospkg
 * pandas
 * quadprog
+
+**Note:** Some dependencies should be installed via conda for better compatibility:
+```bash
+conda install -c conda-forge pinocchio cyipopt
+```
 
 ## Features
 ![figaroh_features](figaroh_flowchart.png)
@@ -68,9 +76,12 @@ As described in the following figure it provides:
     - Calibration model with full-set kinematic parameters.
     - Generation of optimal calibration postures based on combinatorial optimization.
     - Calibration pipeline with customized kinematic chains and different selection of external sensoring methods (eye-hand camera, motion capture) or non-external methods (planar constraints).
-    - Calculatation of kinematic parameters that can be updated in URDF model.
+    - Calculation of kinematic parameters that can be updated in URDF model.
 ## How to use
-Overall, a calibration/identification project folder would like this:
+
+**Note:** For complete working examples, see the [figaroh-examples](https://github.com/thanhndv212/figaroh-examples) repository.
+
+Overall, a calibration/identification project folder would look like this:
 ```
 \considered-system
     \config
@@ -83,7 +94,30 @@ Overall, a calibration/identification project folder would like this:
     identification.py
     update_model.py
 ```
-A step-by-step procedure is presented as follow.
+
+### Quick Start
+
+1. **Install FIGAROH**:
+   ```bash
+   pip install figaroh
+   ```
+
+2. **Get examples**:
+   ```bash
+   git clone https://github.com/thanhndv212/figaroh-examples.git
+   cd figaroh-examples
+   pip install -r requirements.txt
+   ```
+
+3. **Run an example**:
+   ```bash
+   cd examples/tiago
+   python identification.py
+   ```
+
+### Configuration
+
+A step-by-step procedure is presented as follows:
 + Step 1: Define a config file with sample template.\
     A .yaml file containing information of the considered system and characteristics of the calibration/identification problem has a structure as follow:
     ```
@@ -135,14 +169,14 @@ A step-by-step procedure is presented as follow.
                 sync_joint_motion : False
     ```
 + Step 2: Generate sampled exciting postures and trajectories for experimentation.
-    - For geomeotric calibration: Firstly, considering the infinite possibilities of combination of postures can be generated, a finite pool of feasible sampled postures in working space for the considered system needs to be provided thanks to simulator. Then, the pool can be input for a script ```optimal_config.py``` with a combinatorial optimization algorithm which will calculate and propose an optimal set of calibration postures chosen from the pool with much less number of postures while maximizing the excitation.
-    - For dynamic identification: A nonlinear optimization problem needs to formulated and solved thanks to Ipopt solver in a script namde ```optimal_trajectory.py```. Cost function can be chosen amongst different criteria such as condition number. Joint constraints, self-collision constraints should be obligatory, and other dedicated constraints can be included in constraint functions. Then, the Ipopt solver will iterate and find the best cubic spline that sastifies all constraints and optimize the defined cost function which aims to maximize the excitation for dynamics of the considered system.
-+ Step 3: Collect and prepare data in the correct format.\
-    To standardize the handling of data, we propose a sample format for collected data in csv format. These datasets should be stored in a ```data``` folder for such considered system.
-+ Step 4: Create a script implementing identification/calibration algorithms with templates.
-    Dedicated template scripts ```calibration.py``` and ```identification.py``` are provided. Users needs to fill in essential parts to adapt to their systems. At the end, calibration/identification results will be displayed with visualization and statistical analysis. Then, it is up to users to justify the quality of calibration/identification based on their needs.
-+ Step 5: Update model with identified parameters.\
-    Once the results are accepted, users can update calibrated/identified parameters to their urdf model by scripts ```update_model.py``` or simply save to a ```xacro``` file for later usage.
+    - For geometric calibration: Firstly, considering the infinite possibilities of combination of postures can be generated, a finite pool of feasible sampled postures in working space for the considered system needs to be provided thanks to simulator. Then, the pool can be input for a script `optimal_config.py` with a combinatorial optimization algorithm which will calculate and propose an optimal set of calibration postures chosen from the pool with much less number of postures while maximizing the excitation.
+    - For dynamic identification: A nonlinear optimization problem needs to formulated and solved thanks to Ipopt solver in a script named `optimal_trajectory.py`. Cost function can be chosen amongst different criteria such as condition number. Joint constraints, self-collision constraints should be obligatory, and other dedicated constraints can be included in constraint functions. Then, the Ipopt solver will iterate and find the best cubic spline that satisfies all constraints and optimize the defined cost function which aims to maximize the excitation for dynamics of the considered system.
++ Step 3: Collect and prepare data in the correct format.  
+    To standardize the handling of data, we propose a sample format for collected data in CSV format. These datasets should be stored in a `data` folder for such considered system.
++ Step 4: Create a script implementing identification/calibration algorithms with templates.  
+    Dedicated template scripts `calibration.py` and `identification.py` are provided. Users need to fill in essential parts to adapt to their systems. At the end, calibration/identification results will be displayed with visualization and statistical analysis. Then, it is up to users to justify the quality of calibration/identification based on their needs.
++ Step 5: Update model with identified parameters.  
+    Once the results are accepted, users can update calibrated/identified parameters to their URDF model by scripts `update_model.py` or simply save to a `xacro` file for later usage.
 ## Examples
 
 Complete examples and tutorials are available in a separate repository: [figaroh-examples](https://github.com/thanhndv212/figaroh-examples)
@@ -160,6 +194,31 @@ Each example includes:
 - Sample data
 - Complete workflows
 - URDF models (when needed)
+
+## Package Structure
+
+The FIGAROH package is organized into the following modules:
+
+- `figaroh.calibration`: Geometric calibration algorithms and tools
+- `figaroh.identification`: Dynamic parameter identification methods
+- `figaroh.measurements`: Data handling and measurement processing
+- `figaroh.tools`: Core utilities for robotics computations
+- `figaroh.utils`: Helper functions and mathematical utilities
+- `figaroh.visualisation`: Visualization tools for results
+
+## API Usage
+
+```python
+import figaroh
+from figaroh.calibration import calibration_tools
+from figaroh.identification import identification_tools
+
+# Load robot model
+robot = figaroh.tools.robot.Robot("path/to/robot.urdf")
+
+# Perform calibration or identification
+# See examples repository for complete workflows
+```
 ## Citations
 
 If you use FIGAROH in your research, please cite the following papers:
