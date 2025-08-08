@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from sys import argv
+from typing import Optional, Tuple, Union
 import numpy as np
 import pinocchio as pin
 from pinocchio.robot_wrapper import RobotWrapper
@@ -187,58 +188,55 @@ class Robot(RobotWrapper):
                 f"total_dofs={self.model.nv}, "
                 f"free_flyer={self.isFext})")
 
-    Returns:
-        Robot: An instance of the Robot class.
+
+# Simple factory function that leverages load_robot.py
+def create_robot(
+    robot_urdf: str,
+    package_dirs: Optional[str] = None,
+    loader: str = "figaroh",
+    enhanced_features: bool = True,
+    **kwargs
+) -> Union[Robot, RobotWrapper]:
+    """Factory function to create robots with optional enhanced features.
     
-    Raises:
-        ImportError: If the required packages are not installed.
-
-    Note: For loading by URDF, robot_urdf and package_dirs can be different.
-          1/ If package_dirs is not provided directly, robot_pkg is used to
-          look up the package directory.
-            - If the robot description ROS package is
-          installed, the path to this package will be used
-          to load the robot model.
-            - If not, it will be loaded from /models directory.
-          2/ There is no mesh files, package_dirs and robot_pkg are not used.
-          3/ If load_by_urdf is False, the robot is loaded from the ROS
-          parameter server.
+    Args:
+        robot_urdf: Robot identifier or URDF path
+        package_dirs: Package directories
+        loader: Loader type from load_robot.py
+        enhanced_features: If True, returns Robot class with enhanced features
+        **kwargs: Additional arguments for loaders
+        
+    Returns:
+        Robot instance (if enhanced_features=True) or RobotWrapper
     """
-    import os
-    import rospkg
-
-    if load_by_urdf:
-        if package_dirs is None:
-            if robot_pkg is not None:
-                try:
-                    package_dirs = rospkg.RosPack().get_path(robot_pkg)
-                except rospkg.ResourceNotFound:
-                    # Resolve relative path to models directory
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-                    package_dirs = os.path.join(project_root, "models")
-            else:
-                package_dirs = os.path.dirname(os.path.abspath(robot_urdf))
-        elif package_dirs == "models":
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-            package_dirs = os.path.join(project_root, "models")
-
-        if not os.path.exists(robot_urdf):
-            raise FileNotFoundError(f"URDF file not found: {robot_urdf}")
-
-        robot = Robot(robot_urdf, package_dirs=package_dirs, isFext=isFext)
+    if enhanced_features and loader == "figaroh":
+        # Use enhanced Robot class
+        from .load_robot import _prepare_package_dirs, _validate_urdf_exists
+        
+        isFext = kwargs.get('isFext', False)
+        robot_pkg = kwargs.get('robot_pkg')
+        
+        package_dirs = _prepare_package_dirs(robot_urdf, package_dirs, robot_pkg)
+        _validate_urdf_exists(robot_urdf)
+        
+        return Robot(
+            robot_urdf, 
+            package_dirs=package_dirs, 
+            isFext=isFext,
+            freeflyer_ori=kwargs.get('freeflyer_ori'),
+            freeflyer_limits=kwargs.get('freeflyer_limits')
+        )
     else:
-        import rospy
-        from pinocchio.robot_wrapper import RobotWrapper
+        # Use load_robot.py for other loaders
+        from .load_robot import load_robot
+        return load_robot(robot_urdf, package_dirs, loader=loader, **kwargs)
 
-        robot_xml = rospy.get_param("robot_description")
-        if isFext:
-            robot = RobotWrapper(
-                pinocchio.buildModelFromXML(
-                    robot_xml, root_joint=pinocchio.JointModelFreeFlyer()
-                )
-            )
-        else:
-            robot = RobotWrapper(pinocchio.buildModelFromXML(robot_xml))
-    return robot
+
+# Import utilities from load_robot
+from .load_robot import (
+    load_robot,
+    get_available_loaders,
+    list_available_robots
+)
+
+__all__ = ['Robot', 'create_robot', 'load_robot', 'get_available_loaders', 'list_available_robots']
