@@ -168,6 +168,7 @@ def _load_yourdfpy(robot_urdf: str, package_dirs: Optional[str], robot_pkg: Opti
         # Load with yourdfpy
         robot = yourdfpy.URDF.load(
             robot_urdf,
+            mesh_dir=package_dirs,
             build_collision_scene_graph=kwargs.get('build_collision_scene_graph', True),
             load_meshes=kwargs.get('load_meshes', True),
             build_scene_graph=kwargs.get('build_scene_graph', True),
