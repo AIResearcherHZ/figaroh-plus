@@ -41,14 +41,13 @@ def load_robot(
         isFext: Whether to add floating base joint
         load_by_urdf: Whether to load from URDF file (vs ROS param server)
         robot_pkg: Name of robot package for path resolution
-        loader: Loader type - "figaroh", "robot_description", "custom_urdf", "yourdfpy"
+        loader: Loader type - "figaroh", "robot_description", "yourdfpy"
         **kwargs: Additional arguments passed to the specific loader
         
     Returns:
         Robot object based on loader type:
         - "figaroh": Robot class instance (default, backward compatible)
         - "robot_description": RobotWrapper from pinocchio 
-        - "custom_urdf": RobotWrapper from pinocchio via load_custom_urdf
         - "yourdfpy": URDF object from yourdfpy (suitable for viser)
         
     Raises:
@@ -68,15 +67,13 @@ def load_robot(
     # Handle different loaders
     if loader == "robot_description":
         return _load_robot_description(robot_urdf, isFext, **kwargs)
-    elif loader == "custom_urdf":
-        return _load_custom_urdf(robot_urdf, package_dirs, robot_pkg, isFext, **kwargs)
     elif loader == "yourdfpy":
         return _load_yourdfpy(robot_urdf, package_dirs, robot_pkg, **kwargs)
     elif loader == "figaroh":
         # Original figaroh implementation (backward compatible)
         return _load_figaroh_original(robot_urdf, package_dirs, isFext, load_by_urdf, robot_pkg)
     else:
-        raise ValueError(f"Unsupported loader: {loader}. Supported loaders: figaroh, robot_description, custom_urdf, yourdfpy")
+        raise ValueError(f"Unsupported loader: {loader}. Supported loaders: figaroh, robot_description, yourdfpy")
 
 
 def _check_package_available(package_name: str) -> bool:
@@ -122,36 +119,6 @@ def _load_robot_description(robot_name: str, isFext: bool = False, **kwargs) -> 
         raise ImportError(f"Required packages not available for robot_description loader: {e}")
     except Exception as e:
         raise RuntimeError(f"Failed to load robot description '{robot_name}': {e}")
-
-
-def _load_custom_urdf(robot_urdf: str, package_dirs: Optional[str], robot_pkg: Optional[str], 
-                     isFext: bool = False, **kwargs) -> RobotWrapper:
-    """Load robot using load_custom_urdf function."""
-    try:
-        # Try to import from common locations
-        try:
-            from .load_custom_urdf import load_custom_urdf
-        except ImportError:
-            # Try absolute import
-            from load_custom_urdf import load_custom_urdf
-        
-        # Prepare package_dirs
-        package_dirs = _prepare_package_dirs(robot_urdf, package_dirs, robot_pkg)
-        
-        # Prepare loader kwargs
-        loader_kwargs = kwargs.copy()
-        if isFext:
-            loader_kwargs['root_joint'] = pin.JointModelFreeFlyer()
-        
-        return load_custom_urdf(
-            urdf_path=robot_urdf,
-            package_path=package_dirs,
-            loader="pinocchio",
-            **loader_kwargs
-        )
-        
-    except ImportError as e:
-        raise ImportError(f"load_custom_urdf not available: {e}")
 
 
 def _load_yourdfpy(robot_urdf: str, package_dirs: Optional[str], robot_pkg: Optional[str], **kwargs) -> Any:
@@ -280,12 +247,6 @@ def get_available_loaders() -> dict:
             "returns": "RobotWrapper instance",
             "features": ["Pre-defined robot models", "Easy robot switching"]
         },
-        "custom_urdf": {
-            "description": "Load via load_custom_urdf function",
-            "available": False,  # Will be checked dynamically
-            "returns": "RobotWrapper instance",
-            "features": ["Custom URDF processing", "Advanced loading options"]
-        },
         "yourdfpy": {
             "description": "Load with yourdfpy (for visualization)",
             "available": _check_package_available("yourdfpy"),
@@ -293,17 +254,6 @@ def get_available_loaders() -> dict:
             "features": ["Visualization support", "Mesh loading", "Scene graphs"]
         }
     }
-    
-    # Check custom_urdf availability
-    try:
-        from .load_custom_urdf import load_custom_urdf
-        loaders["custom_urdf"]["available"] = True
-    except ImportError:
-        try:
-            from load_custom_urdf import load_custom_urdf
-            loaders["custom_urdf"]["available"] = True
-        except ImportError:
-            pass
     
     return loaders
 
