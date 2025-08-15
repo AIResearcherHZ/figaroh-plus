@@ -169,6 +169,7 @@ def _prepare_package_dirs(robot_urdf: str, package_dirs: Optional[str], robot_pk
     """Prepare package directories for robot loading."""
     if package_dirs is None:
         if robot_pkg is not None:
+            """Resolve package directory from installed ROS robot package."""
             try:
                 import rospkg
                 package_dirs = rospkg.RosPack().get_path(robot_pkg)
@@ -183,25 +184,149 @@ def _prepare_package_dirs(robot_urdf: str, package_dirs: Optional[str], robot_pk
     return package_dirs
 
 
-def _resolve_package_dirs(robot_urdf: str, package_dirs: Optional[str], robot_pkg: Optional[str]) -> str:
-    """Resolve package directories for mesh loading (kept for backward compatibility)."""
-    return _prepare_package_dirs(robot_urdf, package_dirs, robot_pkg)
-
-
-def _get_ros_package_path(robot_pkg: str) -> str:
-    """Get ROS package path with fallback to models directory."""
-    try:
-        import rospkg
-        return rospkg.RosPack().get_path(robot_pkg)
-    except (ImportError, Exception):
-        return _get_models_directory()
-
-
 def _get_models_directory() -> str:
-    """Get models directory relative to current file."""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-    return os.path.join(project_root, "models")
+    """Get models directory from figaroh-examples package.
+    
+    This function tries to locate the models directory from the
+    figaroh-examples package, which should be installed separately
+    from the figaroh package.
+    
+    Returns:
+        str: Path to the models directory
+        
+    Raises:
+        ImportError: If figaroh-examples package is not found or
+                    models directory doesn't exist
+    """
+    try:
+        # Method 1: Try to import figaroh_examples as a package
+        import figaroh_examples
+        examples_root = os.path.dirname(figaroh_examples.__file__)
+        models_dir = os.path.join(examples_root, "models")
+        
+        if os.path.exists(models_dir):
+            return models_dir
+        else:
+            raise FileNotFoundError(
+                f"Models directory not found at: {models_dir}"
+            )
+            
+    except ImportError:
+        try:
+            # Method 2: Try to find figaroh-examples using importlib
+            import importlib.util
+            import sys
+            
+            # Look for figaroh-examples in installed packages
+            for path in sys.path:
+                if os.path.isdir(path):
+                    # Check for figaroh-examples or figaroh_examples
+                    for pkg_name in ['figaroh-examples', 'figaroh_examples']:
+                        pkg_path = os.path.join(path, pkg_name)
+                        if os.path.isdir(pkg_path):
+                            models_dir = os.path.join(pkg_path, "models")
+                            if os.path.exists(models_dir):
+                                return models_dir
+                        
+                        # Also check for .egg-info directories
+                        egg_pattern = f"{pkg_name.replace('-', '_')}*.egg-info"
+                        import glob
+                        egg_dirs = glob.glob(os.path.join(path, egg_pattern))
+                        if egg_dirs:
+                            # Package is installed, try to find actual location
+                            try:
+                                spec = importlib.util.find_spec(
+                                    'figaroh_examples'
+                                )
+                                if spec and spec.origin:
+                                    pkg_dir = os.path.dirname(spec.origin)
+                                    models_dir = os.path.join(
+                                        pkg_dir, "models"
+                                    )
+                                    if os.path.exists(models_dir):
+                                        return models_dir
+                            except (ImportError, AttributeError):
+                                continue
+            
+            # Method 3: Try importlib.metadata (Python 3.8+) or pkg_resources
+            try:
+                # Try modern importlib.metadata first (Python 3.8+)
+                try:
+                    from importlib import metadata
+                    dist = metadata.distribution('figaroh-examples')
+                    # Get files in the distribution
+                    if dist.files:
+                        for file in dist.files:
+                            if 'models' in str(file):
+                                models_dir = os.path.join(
+                                    dist.locate_file('.'), 'models'
+                                )
+                                if os.path.exists(models_dir):
+                                    return models_dir
+                except (ImportError, metadata.PackageNotFoundError):
+                    pass
+                
+                # Fallback to pkg_resources for older Python versions
+                try:
+                    import pkg_resources
+                    try:
+                        dist = pkg_resources.get_distribution(
+                            'figaroh-examples'
+                        )
+                        examples_root = dist.location
+                        # Handle different installation layouts
+                        possible_paths = [
+                            os.path.join(examples_root, "models"),
+                            os.path.join(
+                                examples_root, "figaroh_examples", "models"
+                            ),
+                            os.path.join(
+                                examples_root, "figaroh-examples", "models"
+                            ),
+                        ]
+                        for models_dir in possible_paths:
+                            if os.path.exists(models_dir):
+                                return models_dir
+                    except pkg_resources.DistributionNotFound:
+                        pass
+                except ImportError:
+                    pass
+                    
+            except Exception:
+                pass
+                
+        except ImportError:
+            pass
+            
+        # Method 4: Fallback to development/local locations
+        possible_locations = [
+            # Check if we're in a development environment nearby
+            # From figaroh/src/figaroh/tools -> figaroh-examples
+            os.path.join(
+                os.path.dirname(os.path.dirname(
+                    os.path.dirname(os.path.dirname(
+                        os.path.dirname(__file__)
+                    ))
+                )),
+                "figaroh-examples"
+            ),
+            # Check user's home directory
+            os.path.expanduser("~/figaroh-examples"),
+            # Check current working directory
+            os.path.join(os.getcwd(), "figaroh-examples"),
+        ]
+        
+        for location in possible_locations:
+            models_dir = os.path.join(location, "models")
+            if os.path.exists(models_dir):
+                return models_dir
+        
+        # If none found, raise an informative error
+        raise ImportError(
+            "figaroh-examples package not found. Please install "
+            "figaroh-examples or ensure the models directory is available. "
+            "You can install it with: pip install figaroh-examples"
+        )
 
 
 def _validate_urdf_exists(robot_urdf: str) -> None:
@@ -213,7 +338,9 @@ def _validate_urdf_exists(robot_urdf: str) -> None:
 def _load_from_ros_param(isFext: bool) -> RobotWrapper:
     """Load robot from ROS parameter server."""
     if not _check_package_available("rospy"):
-        raise ImportError("rospy package is not available for ROS parameter server loading")
+        raise ImportError(
+            "rospy package is not available for ROS parameter server loading"
+        )
     
     try:
         import rospy
@@ -239,7 +366,9 @@ def get_available_loaders() -> dict:
             "description": "Original figaroh Robot class",
             "available": True,
             "returns": "Robot instance",
-            "features": ["URDF loading", "ROS param server", "Free-flyer support"]
+            "features": [
+                "URDF loading", "ROS param server", "Free-flyer support"
+            ]
         },
         "robot_description": {
             "description": "Load from robot_descriptions package",
@@ -251,7 +380,9 @@ def get_available_loaders() -> dict:
             "description": "Load with yourdfpy (for visualization)",
             "available": _check_package_available("yourdfpy"),
             "returns": "URDF object",
-            "features": ["Visualization support", "Mesh loading", "Scene graphs"]
+            "features": [
+                "Visualization support", "Mesh loading", "Scene graphs"
+            ]
         }
     }
     
