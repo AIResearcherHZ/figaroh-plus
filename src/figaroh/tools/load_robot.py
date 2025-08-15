@@ -273,13 +273,31 @@ def list_available_robots(loader: str = "robot_description") -> list:
         
         try:
             import robot_descriptions
-            # Get all available robot descriptions
+            # Get all available robot descriptions with URDF format
             available_robots = []
-            for attr_name in dir(robot_descriptions):
-                if not attr_name.startswith('_') and hasattr(getattr(robot_descriptions, attr_name), 'URDF_PATH'):
-                    available_robots.append(attr_name)
+            
+            # Check if DESCRIPTIONS attribute exists
+            if hasattr(robot_descriptions, 'DESCRIPTIONS'):
+                descriptions = robot_descriptions.DESCRIPTIONS
+                for robot_name, robot_info in descriptions.items():
+                    # Check if the robot has URDF format available
+                    if hasattr(robot_info, 'has_urdf') and robot_info.has_urdf:
+                        available_robots.append(robot_name)
+                    # Fallback: check if robot_info has URDF_PATH attribute
+                    elif hasattr(robot_info, 'URDF_PATH'):
+                        available_robots.append(robot_name)
+            else:
+                # Fallback to original method if DESCRIPTIONS not available
+                for attr_name in dir(robot_descriptions):
+                    if attr_name.startswith('_'):
+                        continue
+                    attr_obj = getattr(robot_descriptions, attr_name)
+                    if hasattr(attr_obj, 'URDF_PATH'):
+                        available_robots.append(attr_name)
+            
             return sorted(available_robots)
         except Exception:
             return []
     
     return []
+
