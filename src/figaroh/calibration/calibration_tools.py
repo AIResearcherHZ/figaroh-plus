@@ -20,6 +20,8 @@ import yaml
 from yaml.loader import SafeLoader
 from os.path import abspath
 import matplotlib.pyplot as plt
+import logging
+from scipy.optimize import least_squares
 
 # import quadprog as qp
 import pandas as pd
@@ -1512,6 +1514,321 @@ class BaseCalibration:
         return calc_updated_fkm(
             self.model, self.data, res_, self.q_measured, self.param
         )
+
+    def cost_function(self, var):
+        """Calculate cost function for optimization.
+        
+        This is an abstract method that should be implemented by derived
+        classes to define robot-specific cost computation.
+        
+        Args:
+            var (ndarray): Parameter vector
+            
+        Returns:
+            ndarray: Residual vector
+        """
+        # Default implementation using get_pose_from_measure
+        PEE_est = self.get_pose_from_measure(var)
+        residuals = PEE_est - self.PEE_measured
+        return residuals
+
+    def _setup_logging(self):
+        """Setup logging configuration for terminal output."""
+        # Create logger
+        logger = logging.getLogger('calibration')
+        logger.setLevel(logging.INFO)
+        
+        # Clear existing handlers to avoid duplicates
+        logger.handlers.clear()
+        
+        # Create console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        
+        # Create formatter
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        console_handler.setFormatter(formatter)
+        
+        # Add handler to logger
+        logger.addHandler(console_handler)
+        
+        return logger
+
+    def _optimize_with_outlier_removal(self, var_init, max_iterations=3,
+                                       outlier_threshold=3.0):
+        """Optimize with iterative outlier removal.
+        
+        Args:
+            var_init (ndarray): Initial parameter guess
+            max_iterations (int): Maximum outlier removal iterations
+            outlier_threshold (float): Threshold for outlier detection in
+                                  standard deviations
+            
+        Returns:
+            tuple: (result, outlier_indices, final_residuals)
+        """
+        logger = logging.getLogger('calibration')
+        current_var = var_init.copy()
+        outlier_indices = []
+        
+        for iteration in range(max_iterations):
+            logger.info(f"Outlier removal iteration {iteration + 1}")
+            
+            # Run optimization
+            result = least_squares(
+                self.cost_function,
+                current_var,
+                method='lm',
+                max_nfev=1000
+            )
+            
+            if not result.success:
+                logger.warning(
+                    f"Optimization failed at iteration {iteration + 1}")
+                break
+                
+            # Calculate residuals and detect outliers
+            residuals = self.cost_function(result.x)
+            new_outliers = self._detect_outliers(residuals, outlier_threshold)
+            
+            if len(new_outliers) == 0:
+                logger.info("No outliers detected, optimization converged")
+                break
+                
+            outlier_indices.extend(new_outliers)
+            outlier_indices = list(set(outlier_indices))  # Remove duplicates
+            
+            logger.info(f"Detected {len(new_outliers)} new outliers, "
+                        f"total outliers: {len(outlier_indices)}")
+            
+            # Update for next iteration
+            current_var = result.x
+            
+        return result, outlier_indices, residuals
+
+    def _detect_outliers(self, residuals, threshold):
+        """Detect outliers using statistical threshold.
+        
+        Args:
+            residuals (ndarray): Residual vector
+            threshold (float): Threshold in standard deviations
+            
+        Returns:
+            list: Indices of detected outliers
+        """
+        # Reshape residuals to per-sample format
+        n_dofs = self.param["calibration_index"]
+        n_samples = self.param["NbSample"]
+        
+        if len(residuals) != n_dofs * n_samples:
+            return []
+            
+        residuals_2d = residuals.reshape((n_dofs, n_samples))
+        
+        # Calculate RMS error per sample
+        rms_errors = np.sqrt(np.mean(residuals_2d**2, axis=0))
+        
+        # Detect outliers
+        mean_error = np.mean(rms_errors)
+        std_error = np.std(rms_errors)
+        threshold_value = mean_error + threshold * std_error
+        
+        outliers = np.where(rms_errors > threshold_value)[0].tolist()
+        return outliers
+
+    def _evaluate_solution(self, result, outlier_indices):
+        """Evaluate optimization solution quality.
+        
+        Args:
+            result: Optimization result from scipy.optimize.least_squares
+            outlier_indices (list): Indices of detected outliers
+            
+        Returns:
+            dict: Solution evaluation metrics
+        """
+        residuals = self.cost_function(result.x)
+        n_dofs = self.param["calibration_index"]
+        n_samples = self.param["NbSample"]
+        
+        # Calculate metrics
+        rmse = np.sqrt(np.mean(residuals**2))
+        mae = np.mean(np.abs(residuals))
+        max_error = np.max(np.abs(residuals))
+        
+        # Per-sample metrics
+        if len(residuals) == n_dofs * n_samples:
+            residuals_2d = residuals.reshape((n_dofs, n_samples))
+            sample_rms = np.sqrt(np.mean(residuals_2d**2, axis=0))
+            mean_sample_rms = np.mean(sample_rms)
+            std_sample_rms = np.std(sample_rms)
+        else:
+            mean_sample_rms = rmse
+            std_sample_rms = 0.0
+        
+        return {
+            'rmse': rmse,
+            'mae': mae,
+            'max_error': max_error,
+            'mean_sample_rms': mean_sample_rms,
+            'std_sample_rms': std_sample_rms,
+            'n_outliers': len(outlier_indices),
+            'outlier_percentage': len(outlier_indices) / n_samples * 100,
+            'optimization_success': result.success,
+            'cost': result.cost,
+            'n_iterations': getattr(result, 'nit', 0),
+            'n_function_evals': getattr(result, 'nfev', 0)
+        }
+
+    def _prepare_next_iteration(self, result, iteration):
+        """Prepare for next optimization iteration.
+        
+        Args:
+            result: Current optimization result
+            iteration (int): Current iteration number
+            
+        Returns:
+            ndarray: Initial guess for next iteration
+        """
+        if result.success:
+            return result.x
+        else:
+            # If optimization failed, add small random perturbation
+            perturbation = np.random.normal(0, 0.001, len(result.x))
+            return result.x + perturbation
+
+    def _log_iteration_results(self, iteration, result, evaluation):
+        """Log results for current iteration.
+        
+        Args:
+            iteration (int): Current iteration number
+            result: Optimization result
+            evaluation (dict): Solution evaluation metrics
+        """
+        logger = logging.getLogger('calibration')
+        
+        logger.info(f"Iteration {iteration} Results:")
+        logger.info(f"  Success: {evaluation['optimization_success']}")
+        logger.info(f"  RMSE: {evaluation['rmse']:.6f}")
+        logger.info(f"  MAE: {evaluation['mae']:.6f}")
+        logger.info(f"  Max Error: {evaluation['max_error']:.6f}")
+        logger.info(f"  Cost: {evaluation['cost']:.6f}")
+        logger.info(f"  Function Evaluations: {evaluation['n_function_evals']}")
+        logger.info(f"  Outliers: {evaluation['n_outliers']} "
+                   f"({evaluation['outlier_percentage']:.1f}%)")
+
+    def _store_optimization_results(self, result, evaluation, outlier_indices):
+        """Store optimization results in instance variables.
+        
+        Args:
+            result: Final optimization result
+            evaluation (dict): Solution evaluation metrics
+            outlier_indices (list): Detected outlier indices
+        """
+        # Store main results
+        self.LM_result = result
+        self.var_ = result.x
+        self._var_0 = np.zeros_like(result.x)  # Store initial guess
+        
+        # Store evaluation metrics
+        self.evaluation_metrics = evaluation
+        self.outlier_indices = outlier_indices
+        
+        # Calculate per-sample error distribution for plotting
+        residuals = self.cost_function(result.x)
+        n_dofs = self.param["calibration_index"]
+        n_samples = self.param["NbSample"]
+        n_markers = self.param["NbMarkers"]
+        
+        if len(residuals) == n_dofs * n_samples * n_markers:
+            residuals_3d = residuals.reshape((n_markers, n_dofs, n_samples))
+            self._PEE_dist = np.sqrt(np.mean(residuals_3d**2, axis=1))
+        elif len(residuals) == n_dofs * n_samples:
+            residuals_2d = residuals.reshape((n_dofs, n_samples))
+            sample_rms = np.sqrt(np.mean(residuals_2d**2, axis=0))
+            self._PEE_dist = sample_rms.reshape((1, n_samples))
+        else:
+            # Fallback for unexpected residual shapes
+            self._PEE_dist = np.ones((n_markers, n_samples)) * evaluation['rmse']
+        
+        # Update status
+        self.STATUS = "CALIBRATED"
+
+    def solve_optimisation(self, var_init=None, max_iterations=3,
+                          outlier_threshold=3.0, enable_logging=True):
+        """Solve calibration optimization with robust outlier handling.
+        
+        This method implements a comprehensive optimization strategy:
+        1. Sets up logging for progress tracking
+        2. Iteratively removes outliers and re-optimizes
+        3. Evaluates solution quality with detailed metrics
+        4. Stores results for further analysis
+        
+        Args:
+            var_init (ndarray, optional): Initial parameter guess. If None,
+                                        uses zero initialization.
+            max_iterations (int): Maximum outlier removal iterations
+            outlier_threshold (float): Outlier detection threshold (std devs)
+            enable_logging (bool): Whether to enable terminal logging
+            
+        Raises:
+            ValueError: If optimization fails completely
+            AssertionError: If required data is not loaded
+            
+        Side Effects:
+            - Updates self.LM_result with optimization results
+            - Updates self.STATUS to "CALIBRATED" on success
+            - Creates self.evaluation_metrics with quality metrics
+            - Sets up logging if enabled
+        """
+        # Verify prerequisites
+        assert hasattr(self, 'PEE_measured'), "Call load_data_set() first"
+        assert hasattr(self, 'q_measured'), "Call load_data_set() first"
+        
+        # Setup logging
+        if enable_logging:
+            logger = self._setup_logging()
+            logger.info("Starting calibration optimization")
+            logger.info(f"Parameters: {len(self.param['param_name'])}")
+            logger.info(f"Samples: {self.param['NbSample']}")
+            logger.info(f"DOFs: {self.param['calibration_index']}")
+        
+        # Initialize parameters
+        if var_init is None:
+            var_init, _ = get_LMvariables(self.param, mode=0)
+        
+        try:
+            # Run optimization with outlier removal
+            result, outlier_indices, final_residuals = \
+                self._optimize_with_outlier_removal(
+                    var_init, max_iterations, outlier_threshold
+                )
+            
+            # Evaluate solution
+            evaluation = self._evaluate_solution(result, outlier_indices)
+            
+            # Log final results
+            if enable_logging:
+                logger.info("\n" + "="*50)
+                logger.info("FINAL CALIBRATION RESULTS")
+                logger.info("="*50)
+                self._log_iteration_results("FINAL", result, evaluation)
+                
+                if len(outlier_indices) > 0:
+                    logger.info(f"Outlier samples: {outlier_indices}")
+                
+                logger.info("Calibration completed successfully!")
+            
+            # Store results
+            self._store_optimization_results(result, evaluation, outlier_indices)
+            
+            return result
+            
+        except Exception as e:
+            if enable_logging:
+                logger.error(f"Calibration failed: {str(e)}")
+            raise ValueError(f"Optimization failed: {str(e)}")
 
     def calc_stddev(self):
         """
