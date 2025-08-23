@@ -15,13 +15,13 @@
 
 import numpy as np
 import pinocchio as pin
-import pprint
 import yaml
 from yaml.loader import SafeLoader
 from os.path import abspath
 import matplotlib.pyplot as plt
 import logging
 from scipy.optimize import least_squares
+from abc import ABC, abstractmethod
 
 # import quadprog as qp
 import pandas as pd
@@ -251,7 +251,6 @@ def get_param_from_yaml(robot, calib_data) -> dict:
                 "outlier_eps": None,
             }
         )
-    pprint.pprint(param)
     return param
 
 
@@ -494,7 +493,7 @@ def load_data(path_to_file, model, param, del_list=[]):
 
     # create headers for joint configurations
     joint_headers = [model.names[i] for i in param["actJoint_idx"]]
-    print(joint_headers)
+    
     # check if all created headers present in csv file
     csv_headers = list(df.columns)
     for header in PEE_headers + joint_headers:
@@ -1318,7 +1317,8 @@ def calculate_identifiable_kinematics_model(q, model, data, param):
         if np.linalg.norm(J[r_idx, :]) < 1e-6:
             zero_rows.append(r_idx)
     J = np.delete(J, zero_rows, axis=0)
-    print(R.shape, J.shape)
+    
+    # select regressor matrix based on calibration model
     if param["calib_model"] == "joint_offset":
         return J
     elif param["calib_model"] == "full_params":
@@ -1422,7 +1422,7 @@ def calculate_base_kinematics_regressor(q, model, data, param, tol_qr=TOL_QR):
     return Rrand_b, R_b, R_e, paramsrand_base, paramsrand_e
 
 
-class BaseCalibration:
+class BaseCalibration(ABC):
     def __init__(self, robot, config_file, del_list=[]):
         self._robot = robot
         self.model = self._robot.model
@@ -1447,7 +1447,7 @@ class BaseCalibration:
     def plot(self):
         self.plot_errors_distribution()
         self.plot_3d_poses()
-        self.plot_joint_configurations()
+        # self.plot_joint_configurations()
         plt.show()
 
     def load_param(self, config_file, setting_type="calibration"):
@@ -1515,22 +1515,90 @@ class BaseCalibration:
             self.model, self.data, res_, self.q_measured, self.param
         )
 
+    @abstractmethod
     def cost_function(self, var):
         """Calculate cost function for optimization.
         
-        This is an abstract method that should be implemented by derived
-        classes to define robot-specific cost computation.
+        This is an abstract method that must be implemented by derived
+        classes to define robot-specific cost computation with appropriate
+        weighting and regularization.
         
         Args:
-            var (ndarray): Parameter vector
+            var (ndarray): Parameter vector to evaluate
             
         Returns:
             ndarray: Residual vector
+            
+        Raises:
+            NotImplementedError: If not implemented in derived class
+            
+        Example implementation:
+            >>> def cost_function(self, var):
+            ...     PEEe = calc_updated_fkm(self.model, self.data, var,
+            ...                            self.q_measured, self.param)
+            ...     raw_residuals = self.PEE_measured - PEEe
+            ...     weighted_residuals = self.apply_measurement_weighting(
+            ...         raw_residuals, pos_weight=1000.0, orient_weight=100.0)
+            ...     # Add regularization if needed
+            ...     return weighted_residuals
         """
-        # Default implementation using get_pose_from_measure
-        PEE_est = self.get_pose_from_measure(var)
-        residuals = PEE_est - self.PEE_measured
-        return residuals
+        raise NotImplementedError(
+            "cost_function must be implemented in derived classes. "
+            "Each robot-specific calibration class should define its own "
+            "cost function with appropriate weighting and regularization."
+        )
+
+    def apply_measurement_weighting(self, residuals, pos_weight=None,
+                                    orient_weight=None):
+        """Apply measurement weighting to handle position/orientation units.
+        
+        This utility method can be used by derived classes to properly weight
+        position (meter) and orientation (radian) measurements for equivalent
+        influence in the cost function.
+        
+        Args:
+            residuals (ndarray): Raw residual vector
+            pos_weight (float, optional): Weight for position residuals.
+                                        If None, uses 1/position_std
+            orient_weight (float, optional): Weight for orientation residuals.
+                                           If None, uses 1/orientation_std
+            
+        Returns:
+            ndarray: Weighted residual vector
+            
+        Example:
+            >>> # In derived class cost_function:
+            >>> raw_residuals = self.PEE_measured - PEEe
+            >>> weighted_residuals = self.apply_measurement_weighting(
+            ...     raw_residuals, pos_weight=1000.0, orient_weight=100.0)
+        """
+        # Get weights from parameters or use provided values
+        if pos_weight is None:
+            pos_std = self.param.get("measurement_std", {}).get(
+                "position", 0.001)
+            pos_weight = 1.0 / pos_std
+        
+        if orient_weight is None:
+            orient_std = self.param.get("measurement_std", {}).get(
+                "orientation", 0.01)
+            orient_weight = 1.0 / orient_std
+        
+        weighted_residuals = []
+        residual_idx = 0
+        
+        # Process each sample for each marker
+        for marker in range(self.param["NbMarkers"]):
+            for dof, is_measured in enumerate(self.param["measurability"]):
+                if is_measured:
+                    for sample in range(self.param["NbSample"]):
+                        res = residuals[residual_idx]
+                        if dof < 3:  # Position components (x,y,z)
+                            weighted_residuals.append(res * pos_weight)
+                        else:  # Orientation components (rx,ry,rz)
+                            weighted_residuals.append(res * orient_weight)
+                            # print(f"Residual index: {residual_idx}")
+                        residual_idx += 1
+        return np.array(weighted_residuals)
 
     def _setup_logging(self):
         """Setup logging configuration for terminal output."""
@@ -1557,7 +1625,7 @@ class BaseCalibration:
         return logger
 
     def _optimize_with_outlier_removal(self, var_init, max_iterations=3,
-                                       outlier_threshold=3.0):
+                                       outlier_threshold=1.0):
         """Optimize with iterative outlier removal.
         
         Args:
@@ -1590,7 +1658,8 @@ class BaseCalibration:
                 break
                 
             # Calculate residuals and detect outliers
-            residuals = self.cost_function(result.x)
+            PEE_est = self.get_pose_from_measure(result.x)
+            residuals = PEE_est - self.PEE_measured
             new_outliers = self._detect_outliers(residuals, outlier_threshold)
             
             if len(new_outliers) == 0:
@@ -1648,7 +1717,8 @@ class BaseCalibration:
         Returns:
             dict: Solution evaluation metrics
         """
-        residuals = self.cost_function(result.x)
+        PEE_est = self.get_pose_from_measure(result.x)
+        residuals = PEE_est - self.PEE_measured
         n_dofs = self.param["calibration_index"]
         n_samples = self.param["NbSample"]
         
@@ -1736,7 +1806,8 @@ class BaseCalibration:
         self.outlier_indices = outlier_indices
         
         # Calculate per-sample error distribution for plotting
-        residuals = self.cost_function(result.x)
+        PEE_est = self.get_pose_from_measure(result.x)
+        residuals = PEE_est - self.PEE_measured
         n_dofs = self.param["calibration_index"]
         n_samples = self.param["NbSample"]
         n_markers = self.param["NbMarkers"]
@@ -1791,6 +1862,8 @@ class BaseCalibration:
             logger = self._setup_logging()
             logger.info("Starting calibration optimization")
             logger.info(f"Parameters: {len(self.param['param_name'])}")
+            logger.info(f"Parameter names: {self.param['param_name']}")
+            logger.info(f"Markers: {self.param['NbMarkers']}")
             logger.info(f"Samples: {self.param['NbSample']}")
             logger.info(f"DOFs: {self.param['calibration_index']}")
         
@@ -1810,9 +1883,9 @@ class BaseCalibration:
             
             # Log final results
             if enable_logging:
-                logger.info("\n" + "="*50)
+                logger.info("="*30)
                 logger.info("FINAL CALIBRATION RESULTS")
-                logger.info("="*50)
+                logger.info("="*30)
                 self._log_iteration_results("FINAL", result, evaluation)
                 
                 if len(outlier_indices) > 0:
