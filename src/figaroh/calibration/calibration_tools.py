@@ -21,7 +21,7 @@ from os.path import abspath
 import matplotlib.pyplot as plt
 import logging
 from scipy.optimize import least_squares
-from abc import ABC, abstractmethod
+from abc import ABC
 
 # import quadprog as qp
 import pandas as pd
@@ -1423,7 +1423,104 @@ def calculate_base_kinematics_regressor(q, model, data, param, tol_qr=TOL_QR):
 
 
 class BaseCalibration(ABC):
+    """
+    Abstract base class for robot kinematic calibration.
+    
+    This class provides a comprehensive framework for calibrating robot
+    kinematic parameters using measurement data. It implements the Template
+    Method pattern, providing common functionality while allowing robot-specific
+    implementations of the cost function.
+    
+    The calibration process follows these main steps:
+    1. Parameter initialization from configuration files
+    2. Data loading and validation
+    3. Parameter identification using base regressor analysis
+    4. Robust optimization with outlier detection and removal
+    5. Solution evaluation and validation
+    6. Results visualization and export
+    
+    Key Features:
+    - Automatic parameter identification using QR decomposition
+    - Robust optimization with iterative outlier removal
+    - Unit-aware measurement weighting for position/orientation data
+    - Comprehensive solution evaluation and quality metrics
+    - Extensible framework for different robot types
+    
+    Attributes:
+        STATUS (str): Current calibration status ("NOT CALIBRATED" or
+                     "CALIBRATED")
+        LM_result: Optimization result from scipy.optimize.least_squares
+        var_ (ndarray): Calibrated parameter values
+        evaluation_metrics (dict): Solution quality metrics
+        std_dev (list): Standard deviations of calibrated parameters
+        std_pctg (list): Standard deviation percentages
+        PEE_measured (ndarray): Measured end-effector poses/positions
+        q_measured (ndarray): Measured joint configurations
+        param (dict): Calibration parameters and configuration
+        model: Robot kinematic model (Pinocchio)
+        data: Robot data structure (Pinocchio)
+    
+    Example:
+        >>> # Create robot-specific calibration
+        >>> class MyRobotCalibration(BaseCalibration):
+        ...     def cost_function(self, var):
+        ...         PEEe = calc_updated_fkm(self.model, self.data, var,
+        ...                                self.q_measured, self.param)
+        ...         residuals = self.PEE_measured - PEEe
+        ...         return self.apply_measurement_weighting(residuals)
+        ...
+        >>> # Run calibration
+        >>> calibrator = MyRobotCalibration(robot, "config.yaml")
+        >>> calibrator.initialize()
+        >>> calibrator.solve()
+        >>> print(f"RMSE: {calibrator.evaluation_metrics['rmse']:.6f}")
+    
+    Notes:
+        - Derived classes should implement robot-specific cost_function()
+        - Default cost_function is provided but issues performance warning
+        - Configuration files must follow FIGAROH parameter structure
+        - Supports both "full_params" and "joint_offset" calibration models
+    
+    See Also:
+        - TiagoCalibration: TIAGo robot implementation
+        - UR10Calibration: Universal Robots UR10 implementation
+        - calc_updated_fkm: Forward kinematics computation function
+        - apply_measurement_weighting: Unit-aware weighting utility
+    """
+    
     def __init__(self, robot, config_file, del_list=[]):
+        """Initialize robot calibration framework.
+        
+        Sets up the calibration environment by loading robot model,
+        configuration parameters, and preparing internal data structures
+        for optimization.
+        
+        Args:
+            robot: Robot object containing kinematic model and data structures.
+                  Must have 'model' and 'data' attributes compatible with
+                  Pinocchio library.
+            config_file (str): Path to YAML configuration file containing
+                             calibration parameters, data paths, and settings.
+            del_list (list, optional): Indices of bad/outlier samples to
+                                     exclude from calibration data.
+                                     Defaults to [].
+        
+        Raises:
+            FileNotFoundError: If config_file does not exist
+            KeyError: If required parameters missing from configuration
+            ValueError: If configuration parameters are invalid
+            
+        Side Effects:
+            - Loads and validates configuration parameters
+            - Sets initial calibration status to "NOT CALIBRATED"
+            - Calculates number of calibration variables
+            - Resolves absolute path to measurement data file
+            
+        Example:
+            >>> robot = load_robot_model("tiago.urdf")
+            >>> calibrator = TiagoCalibration(robot, "tiago_config.yaml",
+            ...                              del_list=[5, 12, 18])
+        """
         self._robot = robot
         self.model = self._robot.model
         self.data = self._robot.data
@@ -1435,28 +1532,171 @@ class BaseCalibration(ABC):
         self.STATUS = "NOT CALIBRATED"
 
     def initialize(self):
+        """Initialize calibration data and parameters.
+        
+        Performs the initialization phase of calibration by:
+        1. Loading measurement data from files
+        2. Creating parameter list through base regressor analysis
+        3. Identifying calibratable parameters using QR decomposition
+        
+        This method must be called before solve() to prepare the calibration
+        problem. It handles data validation, parameter identification, and
+        sets up the optimization problem structure.
+        
+        Raises:
+            FileNotFoundError: If measurement data file not found
+            ValueError: If data format is invalid or incompatible
+            AssertionError: If required data dimensions don't match
+            
+        Side Effects:
+            - Populates self.PEE_measured with measurement data
+            - Populates self.q_measured with joint configuration data
+            - Updates self.param["param_name"] with identified parameters
+            - Validates data consistency and dimensions
+            
+        Example:
+            >>> calibrator = TiagoCalibration(robot, "config.yaml")
+            >>> calibrator.initialize()
+            >>> print(f"Loaded {calibrator.param['NbSample']} samples")
+            >>> print(f"Calibrating {len(calibrator.param['param_name'])} "
+            ...       f"parameters")
+        """
         self.load_data_set()
         self.create_param_list()
 
     def solve(self):
+        """Execute the complete calibration process.
+        
+        This is the main entry point for calibration that:
+        1. Runs the optimization algorithm via solve_optimisation()
+        2. Optionally generates visualization plots if enabled
+        
+        The method serves as a high-level orchestrator for the calibration
+        workflow, delegating the actual optimization to solve_optimisation()
+        and handling visualization based on user preferences.
+        
+        Side Effects:
+            - Updates calibration parameters through optimization
+            - Sets self.STATUS to "CALIBRATED" on successful completion
+            - May display plots if self.param["PLOT"] is True
+            
+        See Also:
+            solve_optimisation: Core optimization implementation
+            plot: Visualization and analysis plotting
+        """
         self.solve_optimisation()
-        self.calc_stddev()
         if self.param["PLOT"]:
             self.plot()
 
     def plot(self):
+        """Generate comprehensive visualization plots for calibration results.
+        
+        Creates multiple visualization plots to analyze calibration quality:
+        1. Error distribution plots showing residual patterns
+        2. 3D pose visualizations comparing measured vs predicted poses
+        3. Joint configuration analysis (currently commented)
+        
+        This method provides essential visual feedback for calibration
+        assessment, helping users understand solution quality and identify
+        potential issues with the calibration process.
+        
+        Prerequisites:
+            - Calibration must be completed (solve() called)
+            - Measurement data must be loaded
+            - Matplotlib backend must be configured
+            
+        Side Effects:
+            - Displays plots using plt.show()
+            - May block execution until plots are closed
+            
+        See Also:
+            plot_errors_distribution: Individual error analysis plots
+            plot_3d_poses: 3D pose comparison visualization
+        """
         self.plot_errors_distribution()
         self.plot_3d_poses()
         # self.plot_joint_configurations()
         plt.show()
 
     def load_param(self, config_file, setting_type="calibration"):
+        """Load calibration parameters from YAML configuration file.
+        
+        Reads and parses a YAML configuration file to extract calibration
+        settings and robot-specific parameters. The configuration structure
+        supports multiple setting types (calibration, identification, etc.)
+        within the same file.
+        
+        Args:
+            config_file (str): Path to YAML configuration file containing
+                             calibration parameters and robot settings
+            setting_type (str): Configuration section to load from the YAML
+                              file. Common values include "calibration",
+                              "identification", or custom section names
+                              
+        Raises:
+            FileNotFoundError: If config_file does not exist
+            yaml.YAMLError: If YAML parsing fails
+            KeyError: If setting_type section not found in config
+            
+        Side Effects:
+            - Updates self.param with loaded configuration
+            - Overwrites any existing parameter settings
+            
+        Example:
+            >>> calibrator = BaseCalibration(robot)
+            >>> calibrator.load_param("config/robot_config.yaml")
+            >>> # Or load identification parameters
+            >>> calibrator.load_param("config/robot_config.yaml",
+            ...                       "identification")
+        """
         with open(config_file, "r") as f:
             config = yaml.load(f, Loader=SafeLoader)
         calib_data = config[setting_type]
         self.param = get_param_from_yaml(self._robot, calib_data)
 
     def create_param_list(self, q=None):
+        """Initialize calibration parameter structure and validate setup.
+        
+        This method sets up the fundamental parameter structure for calibration
+        by computing kinematic regressors and ensuring proper frame naming
+        conventions. It serves as a critical initialization step that must be
+        called before optimization begins.
+        
+        The method performs several key operations:
+        1. Computes base kinematic regressors for parameter identification
+        2. Adds default names for unknown base and tip frames
+        3. Validates the parameter structure for calibration readiness
+        
+        Args:
+            q (array_like, optional): Joint configuration for regressor
+                                    computation. If None, uses empty list
+                                    which may limit regressor accuracy
+                                    
+        Returns:
+            bool: Always returns True to indicate successful completion
+            
+        Side Effects:
+            - Updates self.param with frame names if not known
+            - Computes and caches kinematic regressors
+            - May modify parameter structure for calibration compatibility
+            
+        Raises:
+            ValueError: If robot model is not properly initialized
+            AttributeError: If required calibration parameters are missing
+            
+        Example:
+            >>> calibrator = BaseCalibration(robot)
+            >>> calibrator.load_param("config.yaml")
+            >>> calibrator.create_param_list()  # Basic setup
+            >>> # Or with specific joint configuration
+            >>> q_nominal = np.zeros(robot.nq)
+            >>> calibrator.create_param_list(q_nominal)
+            
+        See Also:
+            calculate_base_kinematics_regressor: Core regressor computation
+            add_base_name: Base frame naming utilities
+            add_pee_name: End-effector frame naming utilities
+        """
         if q is None:
             q_ = []
         else:
@@ -1477,51 +1717,82 @@ class BaseCalibration(ABC):
         return True
 
     def load_data_set(self):
+        """Load experimental measurement data for calibration.
+        
+        Reads measurement data from the specified data path and processes it
+        for calibration use. This includes both pose measurements and
+        corresponding joint configurations, with optional data filtering
+        based on the deletion list.
+        
+        The method handles data preprocessing, validation, and formatting
+        to ensure compatibility with the calibration algorithms. It serves
+        as the primary data ingestion point for the calibration process.
+        
+        Side Effects:
+            - Sets self.PEE_measured with processed pose measurements
+            - Sets self.q_measured with corresponding joint configurations
+            - Applies data filtering if self.del_list_ is specified
+            
+        Prerequisites:
+            - self._data_path must be set to valid measurement data location
+            - Robot model must be initialized
+            - Calibration parameters must be loaded
+            
+        Raises:
+            FileNotFoundError: If data files are not found at _data_path
+            ValueError: If data format is incompatible or corrupted
+            AttributeError: If required attributes are not initialized
+            
+        See Also:
+            load_data: Core data loading and processing function
+        """
         self.PEE_measured, self.q_measured = load_data(
             self._data_path, self.model, self.param, self.del_list_
         )
 
-    def load_calibration_param(self, param_file):
-        with open(param_file, "r") as param_file:
-            param_dict_ = yaml.load(param_file, Loader=SafeLoader)
-        assert len(self.param["param_name"]) == len(
-            param_dict_
-        ), "The loaded param list does not match calibration config."
-        self.var_ = np.zeros(len(self.param["param_name"]))
-        updated_var_ = []
-        for i_, name_ in enumerate(self.param["param_name"]):
-            assert name_ == list(param_dict_.keys())[i_]
-            self.var_[i_] = list(param_dict_.values())[i_]
-            updated_var_.append(name_)
-        assert len(updated_var_) == len(self.var_), "Not all param imported."
-        
-    def validate_model(self):
-        assert (
-            self.var_ is not None
-        ), "Call load_calibration_param() to load model parameters first."
-        pee_valid_ = self.get_pose_from_measure(self.var_)
-        rmse_ = np.sqrt(np.mean((pee_valid_ - self.PEE_measured) ** 2))
-        mae_ = np.mean(np.abs(pee_valid_ - self.PEE_measured))
-        print("position root-mean-squared error of end-effector: ", rmse_)
-        print("position mean absolute error of end-effector: ", mae_)
-        return rmse_, mae_
-
-
     def get_pose_from_measure(self, res_):
-        """
-        Get the pose of the robot given a set of parameters.
+        """Calculate forward kinematics with calibrated parameters.
+        
+        Computes robot end-effector poses using the updated kinematic model
+        with calibrated parameters. This method applies the calibration
+        results to predict poses for the measured joint configurations.
+        
+        Args:
+            res_ (ndarray): Calibrated parameter vector containing kinematic
+                          corrections (geometric parameters, base transform,
+                          tool transform, etc.)
+                          
+        Returns:
+            ndarray: Predicted end-effector poses corresponding to the
+                    measured joint configurations. Shape depends on the
+                    number of measurements and pose representation format.
+                    
+        Prerequisites:
+            - Joint configurations must be loaded (q_measured available)
+            - Calibration parameters must be initialized
+            - Robot model must be properly configured
+            
+        Example:
+            >>> # After calibration
+            >>> calibrated_params = calibrator.LM_result.x
+            >>> predicted_poses = calibrator.get_pose_from_measure(
+            ...     calibrated_params)
+            >>> # Compare with measured poses
+            >>> errors = predicted_poses - calibrator.PEE_measured
+            
+        See Also:
+            calc_updated_fkm: Core forward kinematics computation function
         """
         return calc_updated_fkm(
             self.model, self.data, res_, self.q_measured, self.param
         )
 
-    @abstractmethod
     def cost_function(self, var):
         """Calculate cost function for optimization.
         
-        This is an abstract method that must be implemented by derived
-        classes to define robot-specific cost computation with appropriate
-        weighting and regularization.
+        This method provides a default implementation but should be overridden
+        by derived classes to define robot-specific cost computation with
+        appropriate weighting and regularization.
         
         Args:
             var (ndarray): Parameter vector to evaluate
@@ -1529,8 +1800,9 @@ class BaseCalibration(ABC):
         Returns:
             ndarray: Residual vector
             
-        Raises:
-            NotImplementedError: If not implemented in derived class
+        Warning:
+            Using default cost function. Consider implementing robot-specific
+            cost function for optimal performance.
             
         Example implementation:
             >>> def cost_function(self, var):
@@ -1542,11 +1814,31 @@ class BaseCalibration(ABC):
             ...     # Add regularization if needed
             ...     return weighted_residuals
         """
-        raise NotImplementedError(
-            "cost_function must be implemented in derived classes. "
-            "Each robot-specific calibration class should define its own "
-            "cost function with appropriate weighting and regularization."
+        import warnings
+        
+        # Issue warning about using default implementation
+        warnings.warn(
+            f"Using default cost function for {self.__class__.__name__}. "
+            "Consider implementing a robot-specific cost function with "
+            "appropriate weighting and regularization for optimal "
+            "performance.",
+            UserWarning,
+            stacklevel=2
         )
+        
+        # Default implementation: basic residual calculation
+        PEEe = calc_updated_fkm(self.model, self.data, var,
+                                self.q_measured, self.param)
+        raw_residuals = self.PEE_measured - PEEe
+        
+        # Apply basic measurement weighting if configuration is available
+        try:
+            weighted_residuals = self.apply_measurement_weighting(
+                raw_residuals)
+            return weighted_residuals
+        except (KeyError, AttributeError):
+            # Fallback to unweighted residuals if weighting config unavailable
+            return raw_residuals
 
     def apply_measurement_weighting(self, residuals, pos_weight=None,
                                     orient_weight=None):
@@ -1737,12 +2029,17 @@ class BaseCalibration(ABC):
             mean_sample_rms = rmse
             std_sample_rms = 0.0
         
+        # Calculate standard deviation of estimated parameters
+        self.calc_stddev()
+        
         return {
             'rmse': rmse,
             'mae': mae,
             'max_error': max_error,
             'mean_sample_rms': mean_sample_rms,
             'std_sample_rms': std_sample_rms,
+            "param_stdev": self.std_dev,
+            "param_stddev_percentage": self.std_pctg,
             'n_outliers': len(outlier_indices),
             'outlier_percentage': len(outlier_indices) / n_samples * 100,
             'optimization_success': result.success,
@@ -1904,8 +2201,37 @@ class BaseCalibration(ABC):
             raise ValueError(f"Optimization failed: {str(e)}")
 
     def calc_stddev(self):
-        """
-        Calculate the standard deviation of the calibrated parameters.
+        """Calculate parameter uncertainty statistics from optimization
+        results.
+        
+        Computes standard deviation and percentage uncertainty for each
+        calibrated parameter using the covariance matrix derived from the
+        Jacobian at the optimal solution. This provides confidence intervals
+        and parameter reliability metrics.
+        
+        The calculation uses the linearized uncertainty propagation:
+        σ²(θ) = σ²(residuals) * (J^T J)^-1
+        
+        Where J is the Jacobian matrix and σ²(residuals) is the residual
+        variance estimate.
+        
+        Prerequisites:
+            - Calibration optimization must be completed
+            - Jacobian matrix must be available from optimization
+            
+        Side Effects:
+            - Sets self.std_dev with parameter standard deviations
+            - Sets self.std_pctg with percentage uncertainties
+            
+        Raises:
+            AssertionError: If calibration has not been performed
+            LinAlgError: If Jacobian matrix is singular or ill-conditioned
+            
+        Example:
+            >>> calibrator.solve()
+            >>> calibrator.calc_stddev()
+            >>> print(f"Parameter uncertainties: {calibrator.std_dev}")
+            >>> print(f"Percentage errors: {calibrator.std_pctg}")
         """
         assert self.STATUS == "CALIBRATED", "Calibration not performed yet"
         sigma_ro_sq = (self.LM_result.cost**2) / (
@@ -1922,8 +2248,31 @@ class BaseCalibration(ABC):
         self.std_pctg = std_pctg
 
     def plot_errors_distribution(self):
-        """
-        Plot the distribution of the errors.
+        """Plot error distribution analysis for calibration assessment.
+        
+        Creates bar plots showing pose error magnitudes across all samples
+        and markers. This visualization helps identify problematic
+        measurements, assess calibration quality, and detect outliers in
+        the dataset.
+        
+        The plots display error magnitudes (in meters) for each sample,
+        with separate subplots for each marker when multiple markers are used.
+        
+        Prerequisites:
+            - Calibration must be completed (STATUS == "CALIBRATED")
+            - Error analysis must be computed (self._PEE_dist available)
+            
+        Side Effects:
+            - Creates matplotlib figure with error distribution plots
+            - Figure remains open until explicitly closed or plt.show() called
+            
+        Raises:
+            AssertionError: If calibration has not been performed
+            AttributeError: If error analysis data is not available
+            
+        See Also:
+            plot_3d_poses: 3D visualization of pose comparisons
+            calc_stddev: Error statistics computation
         """
         assert self.STATUS == "CALIBRATED", "Calibration not performed yet"
 
