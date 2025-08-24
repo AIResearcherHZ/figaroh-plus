@@ -2030,7 +2030,7 @@ class BaseCalibration(ABC):
             std_sample_rms = 0.0
         
         # Calculate standard deviation of estimated parameters
-        self.calc_stddev()
+        self.calc_stddev(result)
         
         return {
             'rmse': rmse,
@@ -2200,7 +2200,7 @@ class BaseCalibration(ABC):
                 logger.error(f"Calibration failed: {str(e)}")
             raise ValueError(f"Optimization failed: {str(e)}")
 
-    def calc_stddev(self):
+    def calc_stddev(self, result):
         """Calculate parameter uncertainty statistics from optimization
         results.
         
@@ -2233,17 +2233,16 @@ class BaseCalibration(ABC):
             >>> print(f"Parameter uncertainties: {calibrator.std_dev}")
             >>> print(f"Percentage errors: {calibrator.std_pctg}")
         """
-        assert self.STATUS == "CALIBRATED", "Calibration not performed yet"
-        sigma_ro_sq = (self.LM_result.cost**2) / (
+        sigma_ro_sq = (result.cost**2) / (
             self.param["NbSample"] * self.param["calibration_index"] - self.nvars
         )
-        J = self.LM_result.jac
+        J = result.jac
         C_param = sigma_ro_sq * np.linalg.pinv(np.dot(J.T, J))
         std_dev = []
         std_pctg = []
         for i_ in range(self.nvars):
             std_dev.append(np.sqrt(C_param[i_, i_]))
-            std_pctg.append(abs(np.sqrt(C_param[i_, i_]) / self.LM_result.x[i_]))
+            std_pctg.append(abs(np.sqrt(C_param[i_, i_]) / result.x[i_]))
         self.std_dev = std_dev
         self.std_pctg = std_pctg
 
