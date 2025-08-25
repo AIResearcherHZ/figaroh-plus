@@ -83,15 +83,15 @@ def get_param_from_yaml(robot, identif_data):
     return param
 
 
-def set_missing_params_setting(robot, params_settings):
+def set_missing_params_setting(robot, identif_config):
     """Set default values for missing robot parameters.
 
     Fills in missing parameters in the robot model with default values from
-    params_settings when URDF doesn't specify them.
+    identif_config when URDF doesn't specify them.
 
     Args:
         robot (pin.RobotWrapper): Robot instance to update
-        params_settings (dict): Default parameter values containing:
+        identif_config (dict): Default parameter values containing:
             - q_lim_def: Default joint position limits
             - dq_lim_def: Default joint velocity limits
             - tau_lim_def: Default joint torque limits
@@ -99,7 +99,7 @@ def set_missing_params_setting(robot, params_settings):
             - fv, fs: Default friction parameters
 
     Returns:
-        dict: Updated params_settings with all required parameters
+        dict: Updated identif_config with all required parameters
 
     Side Effects:
         Modifies robot model in place:
@@ -117,30 +117,30 @@ def set_missing_params_setting(robot, params_settings):
     if not diff_limit.any:
         print("No joint limits. Set default values")
         for ii in range(robot.model.nq):
-            robot.model.lowerPositionLimit[ii] = -params_settings["q_lim_def"]
-            robot.model.upperPositionLimit[ii] = params_settings["q_lim_def"]
+            robot.model.lowerPositionLimit[ii] = -identif_config["q_lim_def"]
+            robot.model.upperPositionLimit[ii] = identif_config["q_lim_def"]
 
     # Set default velocity limits if zero
     if np.sum(robot.model.velocityLimit) == 0:
         print("No velocity limit. Set default value")
         for ii in range(robot.model.nq):
-            robot.model.velocityLimit[ii] = params_settings["dq_lim_def"]
+            robot.model.velocityLimit[ii] = identif_config["dq_lim_def"]
 
     # Set default torque limits if zero
     if np.sum(robot.model.velocityLimit) == 0:
         print("No joint torque limit. Set default value")
         for ii in range(robot.model.nq):
-            robot.model.effortLimit[ii] = -params_settings["tau_lim_def"]
+            robot.model.effortLimit[ii] = -identif_config["tau_lim_def"]
 
     # Set acceleration limits
     accelerationLimit = np.zeros(robot.model.nq)
     for ii in range(robot.model.nq):
         # accelerationLimit to be consistent with PIN naming
-        accelerationLimit[ii] = params_settings["ddq_lim_def"]
-    params_settings["accelerationLimit"] = accelerationLimit
+        accelerationLimit[ii] = identif_config["ddq_lim_def"]
+    identif_config["accelerationLimit"] = accelerationLimit
 
     # Set friction parameters if needed
-    if params_settings["has_friction"]:
+    if identif_config["has_friction"]:
         for ii in range(robot.model.nv):
             if ii == 0:
                 # Default viscous friction values
@@ -151,17 +151,17 @@ def set_missing_params_setting(robot, params_settings):
                 fv.append((ii + 1) / 10)
                 fs.append((ii + 1) / 10)
 
-        params_settings["fv"] = fv
-        params_settings["fs"] = fs
+        identif_config["fv"] = fv
+        identif_config["fs"] = fs
 
     # Set external wrench offsets if needed
-    if params_settings["external_wrench_offsets"]:
+    if identif_config["external_wrench_offsets"]:
         # Set for a footprint of dim (1.8mx0.9m) at its center
-        params_settings["OFFX"] = 900
-        params_settings["OFFY"] = 450
-        params_settings["OFFZ"] = 0
+        identif_config["OFFX"] = 900
+        identif_config["OFFY"] = 450
+        identif_config["OFFZ"] = 0
 
-    return params_settings
+    return identif_config
 
 
 def base_param_from_standard(phi_standard, params_base):
