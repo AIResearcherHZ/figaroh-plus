@@ -161,15 +161,15 @@ class RegressorBuilder:
 
 
 # Backward compatibility functions
-def build_regressor_basic(robot, q, v, a, param, tau=None):
+def build_regressor_basic(robot, q, v, a, identif_config, tau=None):
     """Legacy function for backward compatibility."""
     config = RegressorConfig(
-        has_friction=param.get("has_friction", False),
-        has_actuator_inertia=param.get("has_actuator_inertia", False),
-        has_joint_offset=param.get("has_joint_offset", False),
-        is_joint_torques=param.get("is_joint_torques", True),
-        is_external_wrench=param.get("is_external_wrench", False),
-        force_torque=param.get("force_torque", None)
+        has_friction=identif_config.get("has_friction", False),
+        has_actuator_inertia=identif_config.get("has_actuator_inertia", False),
+        has_joint_offset=identif_config.get("has_joint_offset", False),
+        is_joint_torques=identif_config.get("is_joint_torques", True),
+        is_external_wrench=identif_config.get("is_external_wrench", False),
+        force_torque=identif_config.get("force_torque", None)
     )
     
     builder = RegressorBuilder(robot, config)
@@ -233,7 +233,7 @@ def build_regressor_reduced(W, idx_e):
 
 
 def build_total_regressor_current(
-    W_b_u, W_b_l, W_l, I_u, I_l, param_standard_l, param
+    W_b_u, W_b_l, W_l, I_u, I_l, param_standard_l, identif_config
 ):
     """Build regressor for total least squares with current measurements.
 
@@ -244,18 +244,18 @@ def build_total_regressor_current(
         I_u: Joint currents in unloaded case
         I_l: Joint currents in loaded case
         param_standard_l: Standard parameters in loaded case
-        param: Dictionary of settings
+        identif_config: Dictionary of settings
 
     Returns:
         tuple:
             - Total regressor matrix
-            - Normalized parameter vector
+            - Normalized identif_configeter vector
             - Residual vector
     """
     W_tot = np.concatenate((-W_b_u, -W_b_l), axis=0)
 
-    nb_joints = int(len(I_u) / param["nb_samples"])
-    n_samples = param["nb_samples"]
+    nb_joints = int(len(I_u) / identif_config["nb_samples"])
+    n_samples = identif_config["nb_samples"]
 
     V_a = np.concatenate([
         I_u[:n_samples].reshape(n_samples, 1),
@@ -284,10 +284,10 @@ def build_total_regressor_current(
     W_current = np.concatenate((V_a, V_b), axis=0)
     W_tot = np.concatenate((W_tot, W_current), axis=1)
 
-    if param["has_friction"]:
+    if identif_config["has_friction"]:
         W_l_temp = np.zeros((len(W_l), 12))
         for k in [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11]:
-            W_l_temp[:, k] = W_l[:, (param["which_body_loaded"]) * 12 + k]
+            W_l_temp[:, k] = W_l[:, (identif_config["which_body_loaded"]) * 12 + k]
         idx_e_temp, params_r_temp = get_index_eliminate(W_l_temp, param_standard_l, 1e-6)
         W_e_l = build_regressor_reduced(W_l_temp, idx_e_temp)
         W_upayload = np.concatenate(
@@ -297,16 +297,16 @@ def build_total_regressor_current(
         W_kpayload = np.concatenate(
             (
                 np.zeros((len(W_l), 1)),
-                -W_l[:, (param["which_body_loaded"]) * 12 + 9].reshape(len(W_l), 1),
+                -W_l[:, (identif_config["which_body_loaded"]) * 12 + 9].reshape(len(W_l), 1),
             ),
             axis=0,
         )
         W_tot = np.concatenate((W_tot, W_kpayload), axis=1)
 
-    elif param["has_actuator_inertia"]:
+    elif identif_config["has_actuator_inertia"]:
         W_l_temp = np.zeros((len(W_l), 14))
         for k in [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13]:
-            W_l_temp[:, k] = W_l[:, (param["which_body_loaded"]) * 14 + k]
+            W_l_temp[:, k] = W_l[:, (identif_config["which_body_loaded"]) * 14 + k]
         idx_e_temp, params_r_temp = get_index_eliminate(W_l_temp, param_standard_l, 1e-6)
         W_e_l = build_regressor_reduced(W_l_temp, idx_e_temp)
         W_upayload = np.concatenate(
@@ -316,7 +316,7 @@ def build_total_regressor_current(
         W_kpayload = np.concatenate(
             (
                 np.zeros((len(W_l), 1)),
-                -W_l[:, (param["which_body_loaded"]) * 14 + 9].reshape(len(W_l), 1),
+                -W_l[:, (identif_config["which_body_loaded"]) * 14 + 9].reshape(len(W_l), 1),
             ),
             axis=0,
         )
@@ -325,7 +325,7 @@ def build_total_regressor_current(
     else:
         W_l_temp = np.zeros((len(W_l), 9))
         for k in range(9):
-            W_l_temp[:, k] = W_l[:, (param["which_body_loaded"]) * 10 + k]
+            W_l_temp[:, k] = W_l[:, (identif_config["which_body_loaded"]) * 10 + k]
         idx_e_temp, params_r_temp = get_index_eliminate(W_l_temp, param_standard_l, 1e-6)
         W_e_l = build_regressor_reduced(W_l_temp, idx_e_temp)
         W_upayload = np.concatenate(
@@ -335,7 +335,7 @@ def build_total_regressor_current(
         W_kpayload = np.concatenate(
             (
                 np.zeros((len(W_l), 1)),
-                -W_l[:, (param["which_body_loaded"]) * 10 + 9].reshape(len(W_l), 1),
+                -W_l[:, (identif_config["which_body_loaded"]) * 10 + 9].reshape(len(W_l), 1),
             ),
             axis=0,
         )
@@ -343,7 +343,7 @@ def build_total_regressor_current(
 
     U, S, Vh = np.linalg.svd(W_tot, full_matrices=False)
     V = np.transpose(Vh).conj()
-    V_norm = param["mass_load"] * np.divide(V[:, -1], V[-1, -1])
+    V_norm = identif_config["mass_load"] * np.divide(V[:, -1], V[-1, -1])
     residue = np.matmul(W_tot, V_norm)
 
     return W_tot, V_norm, residue
@@ -417,7 +417,7 @@ def build_total_regressor_wrench(
     W_l_temp = np.zeros((len(W_l), 9))
     for k in range(9):
         W_l_temp[:, k] = W_l[
-            :, (param["which_body_loaded"]) * 10 + k
+            :, (identif_config["which_body_loaded"]) * 10 + k
         ]
     W_upayload = np.concatenate(
         (np.zeros((len(W_l), W_l_temp.shape[1])), -W_l_temp),
@@ -427,13 +427,13 @@ def build_total_regressor_wrench(
     
     W_kpayload = np.concatenate([
         np.zeros((len(W_l), 1)),
-        -W_l[:, param["which_body_loaded"] * 10 + 9].reshape(len(W_l), 1)
+        -W_l[:, identif_config["which_body_loaded"] * 10 + 9].reshape(len(W_l), 1)
     ], axis=0)
     W_tot = np.concatenate((W_tot, W_kpayload), axis=1)
 
     U, S, Vh = np.linalg.svd(W_tot, full_matrices=False)
     V = np.transpose(Vh).conj()
-    V_norm = param["mass_load"] * np.divide(V[:, -1], V[-1, -1])
+    V_norm = identif_config["mass_load"] * np.divide(V[:, -1], V[-1, -1])
     residue = np.matmul(W_tot, V_norm)
 
     return W_tot, V_norm, residue

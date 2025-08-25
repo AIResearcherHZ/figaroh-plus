@@ -51,7 +51,7 @@ def get_param_from_yaml(robot, identif_data):
     process_params = identif_data["processing_params"][0]
     tls_params = identif_data["tls_params"][0]
 
-    param = {
+    identif_config = {
         "robot_name": robot_name,
         "nb_samples": int(1 / (process_params["ts"])),
         "q_lim_def": robots_params["q_lim_def"],
@@ -80,7 +80,7 @@ def get_param_from_yaml(robot, identif_data):
         "mass_load": tls_params["mass_load"],
         "which_body_loaded": tls_params["which_body_loaded"],
     }
-    return param
+    return identif_config
 
 
 def set_missing_params_setting(robot, identif_config):
@@ -285,7 +285,7 @@ def index_in_base_params(params, id_segments):
     return dict(zip(id_segments_new, values))
 
 
-def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
+def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, identif_config):
     """Compute weighted least squares solution for parameter identification.
 
     Implements iteratively reweighted least squares method from
@@ -304,15 +304,15 @@ def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
     """
     sigma = np.zeros(robot.model.nq)  # For ground reaction force model
     P = np.zeros((len(tau_meas), len(tau_meas)))
-    nb_samples = int(param["idx_tau_stop"][0])
+    nb_samples = int(identif_config["idx_tau_stop"][0])
     start_idx = int(0)
     for ii in range(robot.model.nq):
-        tau_slice = slice(int(start_idx), int(param["idx_tau_stop"][ii]))
+        tau_slice = slice(int(start_idx), int(identif_config["idx_tau_stop"][ii]))
         diff = tau_meas[tau_slice] - tau_est[tau_slice]
         denom = len(tau_meas[tau_slice]) - len(phi_b)
         sigma[ii] = np.linalg.norm(diff) / denom
 
-        start_idx = param["idx_tau_stop"][ii]
+        start_idx = identif_config["idx_tau_stop"][ii]
 
         for jj in range(nb_samples):
             idx = jj + ii * nb_samples
@@ -327,7 +327,7 @@ def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
     return phi_b
 
 
-def calculate_first_second_order_differentiation(model, q, param, dt=None):
+def calculate_first_second_order_differentiation(model, q, identif_config, dt=None):
     """Calculate joint velocities and accelerations from positions.
 
     Computes first and second order derivatives of joint positions using central
@@ -352,16 +352,16 @@ def calculate_first_second_order_differentiation(model, q, param, dt=None):
         Two samples are removed from start/end due to central differences
     """
 
-    if param["is_joint_torques"]:
+    if identif_config["is_joint_torques"]:
         dq = np.zeros([q.shape[0] - 1, q.shape[1]])
         ddq = np.zeros([q.shape[0] - 1, q.shape[1]])
 
-    if param["is_external_wrench"]:
+    if identif_config["is_external_wrench"]:
         dq = np.zeros([q.shape[0] - 1, q.shape[1] - 1])
         ddq = np.zeros([q.shape[0] - 1, q.shape[1] - 1])
 
     if dt is None:
-        dt = param["ts"]
+        dt = identif_config["ts"]
         for ii in range(q.shape[0] - 1):
             dq[ii, :] = pin.difference(model, q[ii, :], q[ii + 1, :]) / dt
 
@@ -383,7 +383,7 @@ def calculate_first_second_order_differentiation(model, q, param, dt=None):
     return q, dq, ddq
 
 
-def low_pass_filter_data(data, param, nbutter=5):
+def low_pass_filter_data(data, identif_config, nbutter=5):
     """Apply zero-phase Butterworth low-pass filter to measurement data.
 
     Uses scipy's filtfilt for zero-phase digital filtering. Removes high
@@ -405,7 +405,7 @@ def low_pass_filter_data(data, param, nbutter=5):
         Border effects are handled by removing nborder = 5*nbutter samples
         from start and end of filtered signal.
     """
-    cutoff = param["ts"] * param["cut_off_frequency_butterworth"] / 2
+    cutoff = identif_config["ts"] * identif_config["cut_off_frequency_butterworth"] / 2
     b, a = signal.butter(nbutter, cutoff, "low")
 
     padlen = 3 * (max(len(b), len(a)) - 1)
@@ -600,14 +600,14 @@ def reorder_inertial_parameters(pinocchio_params):
     return reordered.tolist()
 
 
-def add_standard_additional_parameters(phi, params, param_config, model):
+def add_standard_additional_parameters(phi, params, identif_config, model):
     """Add standard additional parameters (actuator inertia, friction,
     offsets).
     
     Args:
         phi: Current parameter values list
         params: Current parameter names list
-        param_config: Configuration dictionary
+        identif_config: Configuration dictionary
         model: Robot model
         
     Returns:
@@ -653,9 +653,9 @@ def add_standard_additional_parameters(phi, params, param_config, model):
             params.append(param_name)
             
             # Get parameter value
-            if param_config.get(param_def['enabled_key'], False):
+            if identif_config.get(param_def['enabled_key'], False):
                 try:
-                    values_list = param_config.get(param_def['values_key'], [])
+                    values_list = identif_config.get(param_def['values_key'], [])
                     if len(values_list) >= link_idx:
                         value = values_list[link_idx - 1]
                     else:
@@ -736,7 +736,7 @@ def add_custom_parameters(phi, params, custom_params, model):
     return phi, params
 
 
-def get_standard_parameters(model, param=None, include_additional=True,
+def get_standard_parameters(model, identif_config=None, include_additional=True,
                             custom_params=None):
     """Get standard inertial parameters from robot model with extensible
     parameter support.
@@ -766,14 +766,14 @@ def get_standard_parameters(model, param=None, include_additional=True,
         params = get_standard_parameters(robot.model)
         
         # Include standard additional parameters
-        param_config = {
+        identif_config = {
             'has_actuator_inertia': True,
             'has_friction': True,
             'Ia': [0.1, 0.2, 0.3],
             'fv': [0.01, 0.02, 0.03],
             'fs': [0.001, 0.002, 0.003]
         }
-        params = get_standard_parameters(robot.model, param_config)
+        params = get_standard_parameters(robot.model, identif_config)
         
         # Add custom parameters
         custom = {
@@ -782,11 +782,11 @@ def get_standard_parameters(model, param=None, include_additional=True,
             'temperature': {'values': [20.0], 'per_joint': False,
                            'default': 25.0}
         }
-        params = get_standard_parameters(robot.model, param_config,
+        params = get_standard_parameters(robot.model, identif_config,
                                         custom_params=custom)
     """
-    if param is None:
-        param = {}
+    if identif_config is None:
+        identif_config = {}
     
     if custom_params is None:
         custom_params = {}
@@ -818,7 +818,7 @@ def get_standard_parameters(model, param=None, include_additional=True,
     # Add additional standard parameters if requested
     if include_additional:
         phi, params = add_standard_additional_parameters(
-            phi, params, param, model
+            phi, params, identif_config, model
         )
     
     # Add custom parameters if provided

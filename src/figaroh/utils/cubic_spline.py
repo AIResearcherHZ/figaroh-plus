@@ -782,7 +782,7 @@ def init_robot(robot):
     pin.updateFramePlacements(robot.model, robot.data)
 
 
-def calc_torque(N, robot, q, v, a, param):
+def calc_torque(N, robot, q, v, a):
     tau = np.zeros(robot.model.nv * N)
     for i in range(N):
         for j in range(robot.model.nv):
