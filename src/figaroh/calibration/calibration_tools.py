@@ -164,14 +164,14 @@ def get_param_from_yaml(robot, calib_data) -> dict:
 
     # Get initial poses
     try:
-        camera_pose = calib_data["camera_pose"]
+        base_pose = calib_data["base_pose"]
         tip_pose = calib_data["tip_pose"]
     except KeyError:
-        camera_pose = None
+        base_pose = None
         tip_pose = None
-        print("camera_pose and tip_pose are not defined.")
+        print("base_pose and tip_pose are not defined.")
 
-    param["camera_pose"] = camera_pose
+    param["base_pose"] = base_pose
     param["tip_pose"] = tip_pose
 
     # q0: default zero configuration
