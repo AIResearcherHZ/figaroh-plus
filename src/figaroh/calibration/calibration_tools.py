@@ -305,7 +305,7 @@ def get_joint_offset(model, joint_names):
     return joint_off
 
 
-def get_geo_offset(joint_names):
+def get_fullparam_offset(joint_names):
     """Get dictionary of geometric parameter variations.
 
     Creates mapping of geometric offset parameters for each joint's
@@ -321,15 +321,14 @@ def get_geo_offset(joint_names):
             - phix, phiy, phiz: Orientation offsets
 
     Example:
-        >>> geo_params = get_geo_offset(robot.model.names[1:])
+        >>> geo_params = get_fullparam_offset(robot.model.names[1:])
         >>> print(geo_params["d_px_joint1"])
         0.0
     """
-    tpl_names = ["d_px", "d_py", "d_pz", "d_phix", "d_phiy", "d_phiz"]
     geo_params = []
 
     for i in range(len(joint_names)):
-        for j in tpl_names:
+        for j in FULL_PARAMTPL:
             # geo_params.append(j + ("_%d" % i))
             geo_params.append(j + "_" + joint_names[i])
 
@@ -441,7 +440,7 @@ def read_config_data(model, path_to_file):
     q = np.zeros([len(df), model.njoints - 1])
     for i in range(len(df)):
         for j, name in enumerate(model.names[1:].tolist()):
-            jointidx = rank_in_configuration(model, name)
+            jointidx = get_idxq_from_jname(model, name)
             q[i, jointidx] = df[name][i]
     return q
 
@@ -502,20 +501,20 @@ def load_data(path_to_file, model, calib_config, del_list=[]):
             break
 
     # Extract marker position/location
-    xyz_4Mkr = df[PEE_headers].to_numpy()
+    pose_ee = df[PEE_headers].to_numpy()
 
     # Extract joint configurations
     q_act = df[joint_headers].to_numpy()
 
     # remove bad data
     if del_list:
-        xyz_4Mkr = np.delete(xyz_4Mkr, del_list, axis=0)
+        pose_ee = np.delete(pose_ee, del_list, axis=0)
         q_act = np.delete(q_act, del_list, axis=0)
 
     # update number of data points
     calib_config["NbSample"] = q_act.shape[0]
 
-    PEEm_exp = xyz_4Mkr.T
+    PEEm_exp = pose_ee.T
     PEEm_exp = PEEm_exp.flatten("C")
 
     q_exp = np.empty((calib_config["NbSample"], calib_config["q0"].shape[0]))
@@ -530,7 +529,7 @@ def load_data(path_to_file, model, calib_config, del_list=[]):
 # COMMON TOOLS
 
 
-def rank_in_configuration(model, joint_name):
+def get_idxq_from_jname(model, joint_name):
     """Get index of joint in configuration vector.
 
     Args:
@@ -754,7 +753,7 @@ def get_rel_jac(model, data, start_frame, end_frame, q):
 # LEVENBERG-MARQUARDT TOOLS
 
 
-def get_LMvariables(calib_config, mode=0, seed=0):
+def initialize_variables(calib_config, mode=0, seed=0):
     """Initialize variables for Levenberg-Marquardt optimization.
 
     Creates initial parameter vector either as zeros or random values within bounds.
@@ -773,7 +772,7 @@ def get_LMvariables(calib_config, mode=0, seed=0):
             - nvar (int): Number of parameters
 
     Example:
-        >>> var, n = get_LMvariables(params, mode=1, seed=0.1)
+        >>> var, n = initialize_variables(params, mode=1, seed=0.1)
         >>> print(var.shape)
         (42,)
     """
@@ -1356,7 +1355,7 @@ def calculate_base_kinematics_regressor(q, model, data, calib_config, tol_qr=TOL
     """
     # obtain joint names
     joint_names = [name for i, name in enumerate(model.names[1:])]
-    geo_params = get_geo_offset(joint_names)
+    geo_params = get_fullparam_offset(joint_names)
     joint_offsets = get_joint_offset(model, joint_names)
 
     # calculate kinematic regressor with random configs
@@ -2166,7 +2165,7 @@ class BaseCalibration(ABC):
         
         # Initialize parameters
         if var_init is None:
-            var_init, _ = get_LMvariables(self.calib_config, mode=0)
+            var_init, _ = initialize_variables(self.calib_config, mode=0)
         
         try:
             # Run optimization with outlier removal
