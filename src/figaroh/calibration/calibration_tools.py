@@ -1412,12 +1412,6 @@ def calculate_base_kinematics_regressor(q, model, data, calib_config, tol_qr=TOL
     for j in idx_base:
         calib_config["param_name"].append(paramsrand_e[j])
 
-    print(
-        "shape of full regressor, reduced regressor, base regressor: ",
-        Rrand.shape,
-        Rrand_e.shape,
-        Rrand_b.shape,
-    )
     return Rrand_b, R_b, R_e, paramsrand_base, paramsrand_e
 
 
