@@ -71,7 +71,7 @@ def get_param_from_yaml(robot, identif_data):
         "Iam6": robots_params["Iam6"],
         "fvm6": robots_params["fvm6"],
         "fsm6": robots_params["fsm6"],
-        "N": robots_params["N"],
+        "reduction_ratio": robots_params["reduction_ratio"],
         "ratio_essential": robots_params["ratio_essential"],
         "cut_off_frequency_butterworth": process_params[
             "cut_off_frequency_butterworth"
