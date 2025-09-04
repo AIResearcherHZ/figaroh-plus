@@ -7,6 +7,7 @@ Welcome to figaroh's documentation!
 
    modules/identification
    modules/calibration 
+   modules/optimal
    modules/measurements
    modules/tools
    modules/utils
