@@ -23,7 +23,6 @@ import logging
 from scipy.optimize import least_squares
 from abc import ABC
 
-# import quadprog as qp
 import pandas as pd
 from ..tools.regressor import eliminate_non_dynaffect
 from ..tools.qrdecomposition import (

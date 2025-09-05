@@ -16,7 +16,6 @@
 import pinocchio as pin
 import numpy as np
 from scipy import signal
-import quadprog
 import operator
 
 
