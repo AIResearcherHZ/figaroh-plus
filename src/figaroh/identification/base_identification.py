@@ -27,6 +27,11 @@ from abc import ABC, abstractmethod
 from figaroh.identification.identification_tools import (
     get_param_from_yaml as get_identification_param_from_yaml,
 )
+from figaroh.utils.config_parser import (
+    UnifiedConfigParser,
+    create_task_config,
+    is_unified_config
+)
 from figaroh.tools.regressor import (
     build_regressor_basic,
     get_index_eliminate,
@@ -140,12 +145,39 @@ class BaseIdentification(ABC):
         return self.phi_base
     
     def load_param(self, config_file, setting_type="identification"):
-        """Load the identification parameters from the yaml file."""
-        with open(config_file, "r") as f:
-            config = yaml.load(f, Loader=yaml.SafeLoader)
-        self.identif_config = get_identification_param_from_yaml(
-            self.robot, config[setting_type]
-        )
+        """Load the identification parameters from the yaml file.
+        
+        This method supports both legacy YAML format and the new unified
+        configuration format. It automatically detects the format type
+        and applies the appropriate parser.
+        
+        Args:
+            config_file (str): Path to configuration file (legacy or unified)
+            setting_type (str): Configuration section to load 
+        """
+        try:
+            print(f"Loading config from {config_file}")
+            
+            # Check if this is a unified configuration format
+            if is_unified_config(config_file):
+                print("Detected unified configuration format")
+                # Use unified parser
+                parser = UnifiedConfigParser(config_file)
+                unified_config = parser.parse()
+                self.identif_config = create_task_config(
+                    self.robot, unified_config, setting_type
+                )
+            else:
+                print("Detected legacy configuration format")
+                # Use legacy format parsing
+                with open(config_file, "r") as f:
+                    config = yaml.load(f, Loader=yaml.SafeLoader)
+                self.identif_config = get_identification_param_from_yaml(
+                    self.robot, config[setting_type]
+                )
+        except Exception as e:
+            print(f"Error loading config {config_file}: {e}")
+            raise
 
     @abstractmethod
     def load_trajectory_data(self):

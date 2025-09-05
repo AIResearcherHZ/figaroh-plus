@@ -1413,3 +1413,68 @@ def calculate_base_kinematics_regressor(q, model, data, calib_config, tol_qr=TOL
         calib_config["param_name"].append(paramsrand_e[j])
 
     return Rrand_b, R_b, R_e, paramsrand_base, paramsrand_e
+
+
+# Backward compatibility wrapper for get_param_from_yaml
+def get_param_from_yaml_legacy(robot, calib_data) -> dict:
+    """Legacy calibration parameter parser - kept for backward compatibility.
+    
+    This is the original implementation. New code should use the unified
+    config parser from figaroh.utils.config_parser.
+    
+    Args:
+        robot: Robot instance
+        calib_data: Calibration data dictionary
+        
+    Returns:
+        Calibration configuration dictionary
+    """
+    # Keep the original implementation here for compatibility
+    return get_param_from_yaml(robot, calib_data)
+
+
+# Import the new unified parser as the default
+try:
+    from ..utils.config_parser import get_param_from_yaml as unified_get_param_from_yaml
+    
+    # Replace the function with unified version while maintaining signature
+    def get_param_from_yaml_unified(robot, calib_data) -> dict:
+        """Enhanced parameter parser using unified configuration system.
+        
+        This function provides backward compatibility while using the new
+        unified configuration parser when possible.
+        
+        Args:
+            robot: Robot instance
+            calib_data: Configuration data (dict or file path)
+            
+        Returns:
+            Calibration configuration dictionary
+        """
+        try:
+            return unified_get_param_from_yaml(robot, calib_data, "calibration")
+        except Exception as e:
+            # Fall back to legacy parser if unified parser fails
+            import warnings
+            warnings.warn(
+                f"Unified parser failed ({e}), falling back to legacy parser. "
+                "Consider updating your configuration format.",
+                UserWarning
+            )
+            return get_param_from_yaml_legacy(robot, calib_data)
+    
+    # Keep the old function available but with warning
+    def get_param_from_yaml_with_warning(robot, calib_data) -> dict:
+        """Original function with deprecation notice.""" 
+        import warnings
+        warnings.warn(
+            "Direct use of get_param_from_yaml is deprecated. "
+            "Consider using the unified config parser from figaroh.utils.config_parser",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return get_param_from_yaml_unified(robot, calib_data)
+        
+except ImportError:
+    # If unified parser is not available, keep using original function
+    pass

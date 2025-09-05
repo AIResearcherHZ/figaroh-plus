@@ -31,22 +31,21 @@ from scipy.optimize import least_squares
 from abc import ABC
 from typing import Optional, List, Dict, Any, Tuple
 
-# Import necessary functions from FIGAROH library
-try:
-    from figaroh.calibration.calibration_tools import (
-        get_param_from_yaml,
-        calculate_base_kinematics_regressor,
-        add_base_name,
-        add_pee_name,
-        load_data,
-        calc_updated_fkm,
-        initialize_variables
-    )
-except ImportError as e:
-    raise ImportError(
-        f"Failed to import FIGAROH calibration tools: {e}. "
-        "Please ensure FIGAROH is installed and accessible."
-    )
+# FIGAROH imports
+from figaroh.calibration.calibration_tools import (
+    get_param_from_yaml,
+    calculate_base_kinematics_regressor,
+    add_base_name,
+    add_pee_name,
+    load_data,
+    calc_updated_fkm,
+    initialize_variables
+)
+from figaroh.utils.config_parser import (
+    UnifiedConfigParser,
+    create_task_config,
+    is_unified_config
+)
 
 # Import from shared modules
 from figaroh.utils.error_handling import (
@@ -316,46 +315,44 @@ class BaseCalibration(ABC):
     def load_param(self, config_file: str, setting_type: str = "calibration"):
         """Load calibration parameters from YAML configuration file.
         
-        Reads and parses a YAML configuration file to extract calibration
-        settings and robot-specific parameters. The configuration structure
-        supports multiple setting types (calibration, identification, etc.)
-        within the same file.
+        This method supports both legacy YAML format and the new unified
+        configuration format. It automatically detects the format type
+        and applies the appropriate parser.
         
         Args:
-            config_file (str): Path to YAML configuration file containing
-                             calibration parameters and robot settings
-            setting_type (str): Configuration section to load from the YAML
-                              file. Common values include "calibration",
-                              "identification", or custom section names
-                              
-        Raises:
-            FileNotFoundError: If config_file does not exist
-            yaml.YAMLError: If YAML parsing fails
-            KeyError: If setting_type section not found in config
-            CalibrationError: If configuration is invalid
-            
-        Side Effects:
-            - Updates self.calib_config with loaded configuration
-            - Overwrites any existing parameter settings
-            
-        Example:
-            >>> calibrator = BaseCalibration(robot)
-            >>> calibrator.load_param("config/robot_config.yaml")
-            >>> # Or load identification parameters
-            >>> calibrator.load_param("config/robot_config.yaml",
-            ...                       "identification")
+            config_file (str): Path to configuration file (legacy or unified)
+            setting_type (str): Configuration section to load 
         """
         try:
-            with open(config_file, "r") as f:
-                config = yaml.load(f, Loader=SafeLoader)
+            print(f"Loading config from {config_file}")
             
-            if setting_type not in config:
-                raise KeyError(f"Setting type '{setting_type}' not found in config")
+            # Check if this is a unified configuration format
+            if is_unified_config(config_file):
+                print(f"Detected unified configuration format")
+                # Use unified parser
+                parser = UnifiedConfigParser(config_file)
+                unified_config = parser.parse()
+                self.calib_config = create_task_config(
+                    self._robot, unified_config, setting_type
+                )
+            else:
+                print(f"Detected legacy configuration format")
+                # Use legacy format parsing
+                with open(config_file, "r") as f:
+                    config = yaml.load(f, Loader=SafeLoader)
                 
-            calib_data = config[setting_type]
-            self.calib_config = get_param_from_yaml(self._robot, calib_data)
+                if setting_type not in config:
+                    raise KeyError(
+                        f"Setting type '{setting_type}' not found in config"
+                    )
+                    
+                calib_data = config[setting_type]
+                self.calib_config = get_param_from_yaml(self._robot, calib_data)
+            
         except FileNotFoundError:
-            raise CalibrationError(f"Configuration file not found: {config_file}")
+            raise CalibrationError(
+                f"Configuration file not found: {config_file}"
+            )
         except Exception as e:
             raise CalibrationError(f"Failed to load configuration: {e}")
 

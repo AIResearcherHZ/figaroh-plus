@@ -645,3 +645,73 @@ def get_parameter_info():
         }
     }
 
+
+# Backward compatibility wrapper for get_param_from_yaml
+def get_param_from_yaml_legacy(robot, identif_data) -> dict:
+    """Legacy identification parameter parser - kept for backward compatibility.
+    
+    This is the original implementation. New code should use the unified
+    config parser from figaroh.utils.config_parser.
+    
+    Args:
+        robot: Robot instance
+        identif_data: Identification data dictionary
+        
+    Returns:
+        Identification configuration dictionary
+    """
+    # Keep the original implementation here for compatibility
+    return get_param_from_yaml(robot, identif_data)
+
+
+# Import the new unified parser as the default
+try:
+    from ..utils.config_parser import (
+        get_param_from_yaml as unified_get_param_from_yaml
+    )
+    
+    # Replace the function with unified version while maintaining signature
+    def get_param_from_yaml_unified(robot, identif_data) -> dict:
+        """Enhanced parameter parser using unified configuration system.
+        
+        This function provides backward compatibility while using the new
+        unified configuration parser when possible.
+        
+        Args:
+            robot: Robot instance
+            identif_data: Configuration data (dict or file path)
+            
+        Returns:
+            Identification configuration dictionary
+        """
+        try:
+            return unified_get_param_from_yaml(
+                robot, identif_data, "identification"
+            )
+        except Exception as e:
+            # Fall back to legacy parser if unified parser fails
+            import warnings
+            warnings.warn(
+                f"Unified parser failed ({e}), falling back to legacy parser. "
+                "Consider updating your configuration format.",
+                UserWarning
+            )
+            return get_param_from_yaml_legacy(robot, identif_data)
+    
+    # Keep the old function available but with warning
+    def get_param_from_yaml_with_warning(robot, identif_data) -> dict:
+        """Original function with deprecation notice."""
+        import warnings
+        warnings.warn(
+            "Direct use of get_param_from_yaml is deprecated. "
+            "Consider using the unified config parser from "
+            "figaroh.utils.config_parser",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return get_param_from_yaml_unified(robot, identif_data)
+        
+except ImportError:
+    # If unified parser is not available, keep using original function
+    pass
+
