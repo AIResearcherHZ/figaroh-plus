@@ -97,9 +97,9 @@ exclude = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/thanhndv212/figaroh"
-Repository = "https://github.com/thanhndv212/figaroh"
-Issues = "https://github.com/thanhndv212/figaroh/issues"
+Homepage = "https://github.com/thanhndv212/figaroh-plus"
+Repository = "https://github.com/thanhndv212/figaroh-plus"
+Issues = "https://github.com/thanhndv212/figaroh-plus/issues"
 Examples = "https://github.com/thanhndv212/figaroh-examples"
 
 # Uncomment if you have CLI tools

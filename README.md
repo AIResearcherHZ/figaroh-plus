@@ -24,10 +24,12 @@ Install the core FIGAROH package:
 # Install from PyPI
 pip install figaroh
 
+```bash
 # Or install from source
-git clone https://github.com/thanhndv212/figaroh.git
+git clone https://github.com/thanhndv212/figaroh-plus.git
 cd figaroh
 pip install -e .
+```
 ```
 
 ### Examples and Tutorials
