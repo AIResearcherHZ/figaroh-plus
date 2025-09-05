@@ -1,9 +1,16 @@
 Utilities
 ========
 
-Utils
------
-.. automodule:: figaroh.utils
+Configuration Parser  
+-------------------
+.. automodule:: figaroh.utils.config_parser
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Cubic Spline
+-----------
+.. automodule:: figaroh.utils.cubic_spline
    :members:
    :undoc-members:
    :show-inheritance:
