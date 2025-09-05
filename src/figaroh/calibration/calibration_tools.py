@@ -254,6 +254,175 @@ def get_param_from_yaml(robot, calib_data) -> dict:
     return calib_config
 
 
+def unified_to_legacy_config(robot, unified_calib_config) -> dict:
+    """Convert unified configuration format to legacy calib_config format.
+    
+    Maps the new unified configuration structure to the exact format expected
+    by get_param_from_yaml. This ensures backward compatibility while using
+    the new unified parser.
+    
+    Args:
+        robot (pin.RobotWrapper): Robot instance containing model and data
+        unified_calib_config (dict): Configuration from create_task_config
+        
+    Returns:
+        dict: Legacy format calibration configuration matching
+              get_param_from_yaml output
+        
+    Raises:
+        KeyError: If required fields are missing from unified config
+        
+    Example:
+        >>> unified_config = create_task_config(robot, parsed_config,
+        ...                                    "calibration")
+        >>> legacy_config = unified_to_legacy_config(robot, unified_config)
+    """
+    # Extract basic robot information
+    calib_config = dict()
+    robot_name = robot.model.name
+    frames = [f.name for f in robot.model.frames]
+    calib_config["robot_name"] = robot_name
+    
+    # Extract markers and measurements information
+    markers = unified_calib_config.get("measurements", {}).get("markers", [{}])
+    if not markers:
+        raise KeyError("No markers defined in unified configuration")
+    
+    first_marker = markers[0]
+    NbMarkers = len(markers)
+    measurability = first_marker.get(
+        "measurable_dof", [True, True, True, False, False, False]
+    )
+    calib_idx = measurability.count(True)
+    
+    calib_config["NbMarkers"] = NbMarkers
+    calib_config["measurability"] = measurability
+    calib_config["calibration_index"] = calib_idx
+    
+    # Extract calibration model
+    parameters = unified_calib_config.get("parameters", {})
+    calib_config["calib_model"] = parameters.get(
+        "calibration_level", "full_params"
+    )
+    
+    # Extract kinematic frames
+    kinematics = unified_calib_config.get("kinematics", {})
+    start_frame = kinematics.get("base_frame", "universe")
+    end_frame = kinematics.get("tool_frame")
+    
+    if not end_frame:
+        raise KeyError("tool_frame not specified in unified configuration")
+    
+    # Validate frames exist
+    err_msg = "{}_frame {} does not exist"
+    if start_frame not in frames:
+        raise AssertionError(err_msg.format("Start", start_frame))
+    if end_frame not in frames:
+        raise AssertionError(err_msg.format("End", end_frame))
+    
+    calib_config["start_frame"] = start_frame
+    calib_config["end_frame"] = end_frame
+    
+    # Handle eye-hand calibration frames (optional)
+    calib_config["base_to_ref_frame"] = unified_calib_config.get(
+        "base_to_ref_frame"
+    )
+    calib_config["ref_frame"] = unified_calib_config.get("ref_frame")
+    if not calib_config["base_to_ref_frame"] and not calib_config["ref_frame"]:
+        print("base_to_ref_frame and ref_frame are not defined.")
+    
+    # Extract poses
+    poses = unified_calib_config.get("measurements", {}).get("poses", {})
+    calib_config["base_pose"] = poses.get("base_pose")
+    calib_config["tip_pose"] = poses.get("tool_pose")
+    if not calib_config["base_pose"] and not calib_config["tip_pose"]:
+        print("base_pose and tip_pose are not defined.")
+    
+    # Robot configuration
+    calib_config["q0"] = robot.q0
+    
+    # Extract data information
+    data_info = unified_calib_config.get("data", {})
+    calib_config["NbSample"] = data_info.get("number_of_samples", 500)
+    
+    # Tool frame information
+    IDX_TOOL = robot.model.getFrameId(end_frame)
+    calib_config["IDX_TOOL"] = IDX_TOOL
+    tool_joint = robot.model.frames[IDX_TOOL].parent
+    calib_config["tool_joint"] = tool_joint
+    
+    # Active joints - extract from joints.active_joints if available
+    joints_info = unified_calib_config.get("joints", {})
+    active_joint_names = joints_info.get("active_joints", [])
+    
+    if active_joint_names:
+        # Map joint names to indices
+        actJoint_idx = []
+        for joint_name in active_joint_names:
+            if joint_name in robot.model.names:
+                joint_id = robot.model.getJointId(joint_name)
+                actJoint_idx.append(joint_id)
+        calib_config["actJoint_idx"] = actJoint_idx
+    else:
+        # Fall back to computing from frames if no active joints specified
+        actJoint_idx = get_sup_joints(robot.model, start_frame, end_frame)
+        calib_config["actJoint_idx"] = actJoint_idx
+    
+    # Configuration indices
+    config_idx = [robot.model.joints[i].idx_q for i in
+                  calib_config["actJoint_idx"]]
+    calib_config["config_idx"] = config_idx
+    
+    # Number of active joints
+    NbJoint = len(calib_config["actJoint_idx"])
+    calib_config["NbJoint"] = NbJoint
+    
+    # Parameter names (initialize empty, will be filled by create_param_list)
+    param_name = []
+    
+    # Handle non-geometric parameters
+    non_geom = parameters.get("include_non_geometric", False)
+    if non_geom:
+        # Create elastic gain parameter names
+        elastic_gain = []
+        joint_axes = ["PX", "PY", "PZ", "RX", "RY", "RZ"]
+        for j_id, joint_name in enumerate(robot.model.names.tolist()):
+            if joint_name == "universe":
+                axis_motion = "null"
+            else:
+                shortname = robot.model.joints[j_id].shortname()
+                for ja in joint_axes:
+                    if ja in shortname:
+                        axis_motion = ja
+                    elif "RevoluteUnaligned" in shortname:
+                        axis_motion = "RZ"  # hard coded fix for canopies
+            elastic_gain.append("k_" + axis_motion + "_" + joint_name)
+        for i in calib_config["actJoint_idx"]:
+            param_name.append(elastic_gain[i])
+    
+    calib_config["param_name"] = param_name
+    
+    # Basic calibration settings
+    calib_config.update({
+        "free_flyer": parameters.get("free_flyer", False),
+        "non_geom": non_geom,
+        "eps": 1e-3,
+        "PLOT": 0,
+    })
+    
+    # Optional parameters with defaults
+    calib_config["coeff_regularize"] = parameters.get(
+        "regularization_coefficient", 0.01
+    )
+    calib_config["data_file"] = data_info.get("source_file")
+    calib_config["sample_configs_file"] = data_info.get(
+        "sample_configurations_file"
+    )
+    calib_config["outlier_eps"] = parameters.get("outlier_threshold", 0.05)
+    
+    return calib_config
+
+
 def get_joint_offset(model, joint_names):
     """Get dictionary of joint offset parameters.
 

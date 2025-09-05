@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 # FIGAROH imports
 from figaroh.identification.identification_tools import (
     get_param_from_yaml as get_identification_param_from_yaml,
+    unified_to_legacy_identif_config,
 )
 from figaroh.utils.config_parser import (
     UnifiedConfigParser,
@@ -164,8 +165,12 @@ class BaseIdentification(ABC):
                 # Use unified parser
                 parser = UnifiedConfigParser(config_file)
                 unified_config = parser.parse()
-                self.identif_config = create_task_config(
+                unified_identif_config = create_task_config(
                     self.robot, unified_config, setting_type
+                )
+                # Convert unified format to identif_config format
+                self.identif_config = unified_to_legacy_identif_config(
+                    self.robot, unified_identif_config
                 )
             else:
                 print("Detected legacy configuration format")

@@ -34,6 +34,7 @@ from typing import Optional, List, Dict, Any, Tuple
 # FIGAROH imports
 from figaroh.calibration.calibration_tools import (
     get_param_from_yaml,
+    unified_to_legacy_config,
     calculate_base_kinematics_regressor,
     add_base_name,
     add_pee_name,
@@ -332,11 +333,15 @@ class BaseCalibration(ABC):
                 # Use unified parser
                 parser = UnifiedConfigParser(config_file)
                 unified_config = parser.parse()
-                self.calib_config = create_task_config(
+                unified_calib_config = create_task_config(
                     self._robot, unified_config, setting_type
                 )
+                # Convert unified format to legacy calib_config format
+                self.calib_config = unified_to_legacy_config(
+                    self._robot, unified_calib_config
+                )
             else:
-                print(f"Detected legacy configuration format")
+                print("Detected legacy configuration format")
                 # Use legacy format parsing
                 with open(config_file, "r") as f:
                     config = yaml.load(f, Loader=SafeLoader)
@@ -347,7 +352,9 @@ class BaseCalibration(ABC):
                     )
                     
                 calib_data = config[setting_type]
-                self.calib_config = get_param_from_yaml(self._robot, calib_data)
+                self.calib_config = get_param_from_yaml(
+                    self._robot, calib_data
+                )
             
         except FileNotFoundError:
             raise CalibrationError(

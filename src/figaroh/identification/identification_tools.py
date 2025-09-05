@@ -83,6 +83,89 @@ def get_param_from_yaml(robot, identif_data):
     return identif_config
 
 
+def unified_to_legacy_identif_config(robot, unified_identif_config) -> dict:
+    """Convert unified identification format to legacy identif_config format.
+    
+    Maps the new unified identification configuration structure to produce
+    the exact same output as get_param_from_yaml. This ensures backward
+    compatibility while using the new unified parser.
+    
+    Args:
+        robot (pin.RobotWrapper): Robot instance containing model and data
+        unified_identif_config (dict): Configuration from create_task_config
+        
+    Returns:
+        dict: Identification configuration matching get_param_from_yaml output
+        
+    Example:
+        >>> unified_config = create_task_config(robot, parsed_config,
+        ...                                    "identification")
+        >>> legacy_config = unified_to_legacy_identif_config(robot,
+        ...                                                  unified_config)
+        >>> # legacy_config has same keys as get_param_from_yaml output
+    """
+    # Extract unified config sections
+    mechanics = unified_identif_config.get("mechanics", {})
+    joints = unified_identif_config.get("joints", {})
+    problem = unified_identif_config.get("problem", {})
+    coupling = unified_identif_config.get("coupling", {})
+    signal_processing = unified_identif_config.get("signal_processing", {})
+    
+    # Get robot name
+    robot_name = robot.model.name
+    
+    # Extract values from unified config with defaults
+    joint_limits = joints.get("joint_limits", {})
+    velocity_limits = joint_limits.get("velocity", [0.05] * 12)
+    model_components = problem.get("model_components", {})
+    ft_sensors = problem.get("force_torque_sensors", [])
+    force_torque = ft_sensors[0] if ft_sensors else None
+    
+    # Get sampling parameters
+    sampling_freq = signal_processing.get("sampling_frequency", 5000.0)
+    ts = 1.0 / sampling_freq
+    cutoff_freq = signal_processing.get("cutoff_frequency", 100.0)
+    
+    # Build the exact same structure as get_param_from_yaml returns
+    identif_config = {
+        "robot_name": robot_name,
+        "nb_samples": int(1 / ts),  # Same calculation as get_param_from_yaml
+        "q_lim_def": 1.57,  # Default joint position limit
+        "dq_lim_def": velocity_limits,
+        "is_external_wrench": problem.get("include_external_forces", False),
+        "is_joint_torques": problem.get("use_joint_torques", True),
+        "force_torque": force_torque,
+        "external_wrench_offsets": problem.get(
+            "external_wrench_offsets", False
+        ),
+        "has_friction": model_components.get("friction", True),
+        "fv": mechanics.get("friction_coefficients", {}).get(
+            "viscous", [0] * 12
+        ),
+        "fs": mechanics.get("friction_coefficients", {}).get(
+            "static", [0] * 12
+        ),
+        "has_actuator_inertia": model_components.get("actuator_inertia", True),
+        "Ia": mechanics.get("actuator_inertias", [0] * 12),
+        "has_joint_offset": model_components.get("joint_offset", True),
+        "off": mechanics.get("joint_offsets", [0] * 12),
+        "has_coupled_wrist": coupling.get("has_coupled_wrist", True),
+        "Iam6": coupling.get("Iam6", 0),
+        "fvm6": coupling.get("fvm6", 0),
+        "fsm6": coupling.get("fsm6", 0),
+        "reduction_ratio": mechanics.get(
+            "reduction_ratios", [32.0, 32.0, 45.0, -48.0, 45.0, 32.0]
+        ),
+        "ratio_essential": mechanics.get("ratio_essential", 30.0),
+        "cut_off_frequency_butterworth": cutoff_freq,
+        "ts": ts,
+        "mass_load": 0.0,  # Default: no external mass
+        "which_body_loaded": 0.0,  # Default: no external load
+    }
+    
+    return identif_config
+
+
 def base_param_from_standard(phi_standard, params_base):
     """Convert standard parameters to base parameters.
 
