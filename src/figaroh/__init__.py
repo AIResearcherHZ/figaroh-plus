@@ -9,6 +9,7 @@ from . import identification
 from . import measurements
 from . import utils
 from . import visualisation
+from . import optimal
 
 
 __version__ = "0.1.0"

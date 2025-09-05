@@ -5,6 +5,13 @@ FIGAROH is a Python toolbox providing efficient and highly flexible frameworks f
 
 **📦 Available on PyPI:** `pip install figaroh`
 
+**🚀 Key Features:**
+- **Unified Configuration System**: Flexible YAML-based configuration with template inheritance
+- **Advanced Parameter Mapping**: Seamless conversion between configuration formats
+- **Enhanced Regressor Builder**: Modern, object-oriented regressor computation
+- **Comprehensive Examples**: Full working examples in separate repository
+- **Cross-Platform Support**: Works on Linux, macOS, and Windows
+
 Note: This repo is a fork from [gitlab repo](https://gitlab.laas.fr/gepetto/figaroh) of which the author is no longer a contributor.
 
 ## Installation
@@ -56,7 +63,6 @@ FIGAROH has the following core dependencies (automatically installed with pip):
 * meshcat
 * rospkg
 * pandas
-* quadprog
 
 **Note:** Some dependencies should be installed via conda for better compatibility:
 ```bash
@@ -64,19 +70,37 @@ conda install -c conda-forge pinocchio cyipopt
 ```
 
 ## Features
+
 ![figaroh_features](figaroh_flowchart.png)
-As described in the following figure it provides:
-+ Dynamic Identification:
-    - Dynamic model including effects of frictions, actuator inertia and joint torque offset.
-    - Generation of continuous optimal exciting trajectories that can be played onto the robot.
-    - Guide line on data filtering/pre-processing.
-    - Identification pipeline with a selection of dynamic parameter estimation algorithms.
-    - Calculation of physically consistent standard inertial parameters that can be updated in a URDF file.
-+ Geometric Calibration:
-    - Calibration model with full-set kinematic parameters.
-    - Generation of optimal calibration postures based on combinatorial optimization.
-    - Calibration pipeline with customized kinematic chains and different selection of external sensoring methods (eye-hand camera, motion capture) or non-external methods (planar constraints).
-    - Calculation of kinematic parameters that can be updated in URDF model.
+
+FIGAROH provides a comprehensive suite of tools for robot calibration and identification:
+
+### Dynamic Identification
+- **Advanced Model Support**: Dynamic models including friction, actuator inertia, joint torque offsets
+- **Optimal Trajectory Generation**: Continuous exciting trajectories with constraint handling
+- **Smart Data Processing**: Automated filtering and pre-processing pipelines
+- **Multiple Algorithms**: Selection of parameter estimation methods (LS, WLS, TLS)
+- **Physical Consistency**: Physically consistent inertial parameters for URDF updates
+
+### Geometric Calibration  
+- **Complete Kinematic Models**: Full-set kinematic parameter estimation
+- **Optimal Configuration**: Automated calibration posture selection via combinatorial optimization
+- **Flexible Sensing**: Support for various sensors (cameras, motion capture, planar constraints)
+- **Custom Kinematic Chains**: Adaptable to different robot structures
+- **URDF Integration**: Direct model parameter updates
+
+### Configuration Management
+- **Unified YAML Format**: Single configuration system for all workflows
+- **Template Inheritance**: Reusable configuration templates
+- **Automatic Format Detection**: Seamless legacy compatibility
+- **Parameter Mapping**: Advanced conversion between configuration formats
+- **Validation System**: Comprehensive configuration validation
+
+### Enhanced Tools
+- **Modern Regressor Builder**: Object-oriented, extensible regressor computation
+- **Advanced Visualization**: Rich plotting and analysis tools  
+- **Error Handling**: Robust error management and reporting
+- **Results Management**: Structured result storage and analysis
 ## How to use
 
 **Note:** For complete working examples, see the [figaroh-examples](https://github.com/thanhndv212/figaroh-examples) repository.
@@ -117,57 +141,77 @@ Overall, a calibration/identification project folder would look like this:
 
 ### Configuration
 
-A step-by-step procedure is presented as follows:
-+ Step 1: Define a config file with sample template.\
-    A .yaml file containing information of the considered system and characteristics of the calibration/identification problem has a structure as follow:
-    ```
-    calibration:
-        calib_level: full_params
-        non_geom: False
-        base_frame: universe
-        tool_frame: wrist_3_link
-        markers:
-            -   ref_joint: wrist_3_joint
-                measure: [True, True, True, True, True, True]
-        free_flyer: False
-        nb_sample: 29
-    ```
-    ```
-    identification:
-        robot_params:
-            -   q_lim_def: 1.57
-                dq_lim_def : 5.0
-                ddq_lim_def : 20.0
-                tau_lim_def : 4.0
-                fv : None
-                fs : None
-                Ia : None
-                offset : None
-                Iam6 : None
-                fvm6 : None
-                fsm6 : None
-                N : None
-                ratio_essential : None
-        problem_params:
-            -   is_external_wrench : False
-                is_joint_torques : True
-                force_torque : ['All']
-                external_wrench_offsets : False
-                has_friction : False
-                has_joint_offset : False
-                has_actuator_inertia : False
-                is_static_regressor : True
-                is_inertia_regressor : True
-                has_coupled_wrist : False
-                embedded_forces : False
-        processing_params:
-            -   cut_off_frequency_butterworth: 100.0
-                ts : 0.01
-        tls_params:
-            -   mass_load : None
-                which_body_loaded : None
-                sync_joint_motion : False
-    ```
+FIGAROH now supports a modern unified configuration system with enhanced flexibility and compatibility:
+
+#### Unified Configuration Format
+
+Modern YAML configuration with template inheritance and validation:
+
+```yaml
+# modern_config.yaml
+inherit_from: "templates/base_robot.yaml"
+
+robot:
+  name: "tiago"
+  urdf_path: "urdf/tiago.urdf"
+
+calibration:
+  method: "full_params"
+  sensor_type: "camera"
+  optimization:
+    algorithm: "least_squares"
+    tolerance: 1e-6
+  
+  markers:
+    - ref_joint: "wrist_3_joint"  
+      position: [0.1, 0.0, 0.05]
+      measure: [true, true, true, true, true, true]
+
+identification:
+  mechanics:
+    friction_coefficients:
+      viscous: [0.01, 0.02, 0.015]
+      static: [0.001, 0.002, 0.0015]
+    actuator_inertias: [0.1, 0.15, 0.12]
+    
+  signal_processing:
+    sampling_frequency: 5000.0
+    cutoff_frequency: 100.0
+    filter_type: "butterworth"
+    filter_order: 5
+```
+
+#### Legacy Format Support
+
+The system maintains full backward compatibility with existing configurations:
+
+```yaml
+# legacy_config.yaml  
+calibration:
+  calib_level: full_params
+  base_frame: universe
+  tool_frame: wrist_3_link
+  markers:
+    - ref_joint: wrist_3_joint
+      measure: [True, True, True, True, True, True]
+
+identification:
+  robot_params:
+    - q_lim_def: 1.57
+      fv: [0.01, 0.02, 0.015] 
+      fs: [0.001, 0.002, 0.0015]
+  processing_params:
+    - ts: 0.0002
+      cut_off_frequency_butterworth: 100.0
+```
+
+#### Configuration Features
+
+- **Automatic Format Detection**: System detects and handles both formats seamlessly
+- **Template Inheritance**: Reuse common configurations across projects  
+- **Parameter Mapping**: Advanced conversion between unified and legacy formats
+- **Validation**: Comprehensive validation with helpful error messages
+- **Documentation**: Built-in configuration documentation and examples
 + Step 2: Generate sampled exciting postures and trajectories for experimentation.
     - For geometric calibration: Firstly, considering the infinite possibilities of combination of postures can be generated, a finite pool of feasible sampled postures in working space for the considered system needs to be provided thanks to simulator. Then, the pool can be input for a script `optimal_config.py` with a combinatorial optimization algorithm which will calculate and propose an optimal set of calibration postures chosen from the pool with much less number of postures while maximizing the excitation.
     - For dynamic identification: A nonlinear optimization problem needs to formulated and solved thanks to Ipopt solver in a script named `optimal_trajectory.py`. Cost function can be chosen amongst different criteria such as condition number. Joint constraints, self-collision constraints should be obligatory, and other dedicated constraints can be included in constraint functions. Then, the Ipopt solver will iterate and find the best cubic spline that satisfies all constraints and optimize the defined cost function which aims to maximize the excitation for dynamics of the considered system.
@@ -199,25 +243,115 @@ Each example includes:
 
 The FIGAROH package is organized into the following modules:
 
-- `figaroh.calibration`: Geometric calibration algorithms and tools
-- `figaroh.identification`: Dynamic parameter identification methods
-- `figaroh.measurements`: Data handling and measurement processing
-- `figaroh.tools`: Core utilities for robotics computations
-- `figaroh.utils`: Helper functions and mathematical utilities
-- `figaroh.visualisation`: Visualization tools for results
+### Core Modules
+- **`figaroh.calibration`**: Geometric calibration algorithms and base classes
+  - `BaseCalibration`: Modern calibration workflow management
+  - `calibration_tools`: Parameter parsing and mapping functions
+  
+- **`figaroh.identification`**: Dynamic parameter identification methods
+  - `BaseIdentification`: Modern identification workflow management  
+  - `identification_tools`: Parameter processing and regressor utilities
+
+- **`figaroh.tools`**: Core utilities for robotics computations
+  - `regressor`: Enhanced regressor builder with object-oriented design
+  - `robot`: Robot model loading and management utilities
+  - `robotvisualization`: Advanced visualization tools
+
+### Utility Modules  
+- **`figaroh.utils`**: Helper functions and system utilities
+  - `config_parser`: Unified configuration parsing system
+  - `results_manager`: Structured result storage and analysis
+  - `error_handling`: Robust error management framework
+  - `cubic_spline`: Spline interpolation utilities
+
+- **`figaroh.measurements`**: Data handling and processing
+- **`figaroh.visualisation`**: Plotting and visualization tools  
+- **`figaroh.optimal`**: Optimization algorithms for trajectory and configuration generation
+
+### Key Improvements in Latest Version
+
+#### Enhanced Configuration System
+- **Unified YAML Format**: Single configuration system supporting both new and legacy formats
+- **Template Inheritance**: Reusable configuration templates with parameter overrides
+- **Automatic Format Detection**: Seamless backward compatibility 
+- **Advanced Parameter Mapping**: Conversion between unified and legacy configuration formats
+
+#### Modern Object-Oriented Design
+- **RegressorBuilder**: Flexible, extensible regressor computation
+- **Base Classes**: Standardized calibration and identification workflows
+- **Configuration Management**: Integrated config parsing and validation
+
+#### Improved Robustness  
+- **Error Handling**: Comprehensive error management with informative messages
+- **Input Validation**: Robust parameter validation and type checking
+- **Cross-Platform Support**: Enhanced compatibility across operating systems
 
 ## API Usage
 
+### Modern Object-Oriented Interface
+
 ```python
 import figaroh
+from figaroh.calibration import BaseCalibration
+from figaroh.identification import BaseIdentification  
+from figaroh.tools.regressor import RegressorBuilder, RegressorConfig
+from figaroh.utils.config_parser import UnifiedConfigParser
+
+# Load robot model
+robot = figaroh.tools.robot.load_robot("path/to/robot.urdf")
+
+# Modern configuration parsing
+parser = UnifiedConfigParser("config/robot_config.yaml")
+config = parser.parse()
+
+# Calibration workflow
+calibration = BaseCalibration(robot, "config/robot_config.yaml")
+calibration.load_data("data/calibration_data.csv")
+results = calibration.run_calibration()
+
+# Identification workflow  
+identification = BaseIdentification(robot, "config/robot_config.yaml")
+identification.load_data("data/identification_data.csv")
+params = identification.run_identification()
+
+# Advanced regressor building
+regressor_config = RegressorConfig(
+    has_friction=True,
+    has_actuator_inertia=True,
+    is_joint_torques=True
+)
+builder = RegressorBuilder(robot, regressor_config)
+W = builder.build_basic_regressor(q, dq, ddq)
+```
+
+### Legacy Function Interface
+
+```python
+# Legacy function-based interface (still supported)
 from figaroh.calibration import calibration_tools
 from figaroh.identification import identification_tools
 
-# Load robot model
-robot = figaroh.tools.robot.Robot("path/to/robot.urdf")
+# Load parameters from YAML
+calib_config = calibration_tools.get_param_from_yaml(robot, config_data)
+identif_config = identification_tools.get_param_from_yaml(robot, config_data)
 
-# Perform calibration or identification
-# See examples repository for complete workflows
+# Build regressors
+from figaroh.tools.regressor import build_regressor_basic
+W = build_regressor_basic(robot, q, dq, ddq, identif_config)
+```
+
+### Configuration Format Conversion
+
+```python
+from figaroh.calibration.calibration_tools import unified_to_legacy_config
+from figaroh.identification.identification_tools import unified_to_legacy_identif_config
+
+# Convert unified format to legacy format
+unified_config = parser.create_task_config(robot, parsed_config, "calibration")  
+legacy_config = unified_to_legacy_config(robot, unified_config)
+
+# Automatic format detection and conversion in base classes
+calibration = BaseCalibration(robot, "any_config_format.yaml")  # Works with both formats
 ```
 ## Citations
 

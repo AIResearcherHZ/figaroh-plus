@@ -90,7 +90,7 @@ def generate_waypoints_fext(N, robot, mlow, mhigh):
     return q, v, a
 
 
-def get_torque_rand(N, robot, q, v, a, param):
+def get_torque_rand(N, robot, q, v, a, identif_config):
     """Calculate random torque values including various dynamic effects.
 
     Args:
@@ -99,7 +99,7 @@ def get_torque_rand(N, robot, q, v, a, param):
         q: Joint positions array
         v: Joint velocities array
         a: Joint accelerations array
-        param: Dictionary of dynamic parameters
+        identif_config: Dictionary of dynamic parameters
 
     Returns:
         array: Joint torques array
@@ -109,37 +109,37 @@ def get_torque_rand(N, robot, q, v, a, param):
         for j in range(robot.model.nv):
             tau[j * N + i] = pin.rnea(
                 robot.model, robot.data, q[i, :], v[i, :], a[i, :])[j]
-    if param["has_friction"]:
+    if identif_config["has_friction"]:
         for i in range(N):
             for j in range(robot.model.nv):
-                fv_term = v[i, j] * param["fv"][j]
-                fs_term = np.sign(v[i, j]) * param["fs"][j]
+                fv_term = v[i, j] * identif_config["fv"][j]
+                fs_term = np.sign(v[i, j]) * identif_config["fs"][j]
                 tau[j * N + i] += fv_term + fs_term
-    if param["has_actuator_inertia"]:
+    if identif_config["has_actuator_inertia"]:
         for i in range(N):
             for j in range(robot.model.nv):
-                tau[j * N + i] += param["Ia"][j] * a[i, j]
-    if param["has_joint_offset"]:
+                tau[j * N + i] += identif_config["Ia"][j] * a[i, j]
+    if identif_config["has_joint_offset"]:
         for i in range(N):
             for j in range(robot.model.nv):
-                tau[j * N + i] += param["off"][j]
-    if param["has_coupled_wrist"]:
+                tau[j * N + i] += identif_config["off"][j]
+    if identif_config["has_coupled_wrist"]:
         for i in range(N):
             for j in range(robot.model.nv):
                 if j == robot.model.nv - 2:
                     tau[j * N + i] += (
-                        param["Iam6"] * v[i, robot.model.nv - 1]
-                        + param["fvm6"] * v[i, robot.model.nv - 1]
-                        + param["fsm6"]
+                        identif_config["Iam6"] * v[i, robot.model.nv - 1]
+                        + identif_config["fvm6"] * v[i, robot.model.nv - 1]
+                        + identif_config["fsm6"]
                         * np.sign(
                             v[i, robot.model.nv - 2] + v[i, robot.model.nv - 1]
                         )
                     )
                 if j == robot.model.nv - 1:
                     tau[j * N + i] += (
-                        param["Iam6"] * v[i, robot.model.nv - 2]
-                        + param["fvm6"] * v[i, robot.model.nv - 2]
-                        + param["fsm6"]
+                        identif_config["Iam6"] * v[i, robot.model.nv - 2]
+                        + identif_config["fvm6"] * v[i, robot.model.nv - 2]
+                        + identif_config["fsm6"]
                         * np.sign(
                             v[i, robot.model.nv - 2] + v[i, robot.model.nv - 1]
                         )
