@@ -16,7 +16,6 @@
 import pinocchio as pin
 import numpy as np
 from scipy import signal
-import quadprog
 import operator
 
 
@@ -51,7 +50,7 @@ def get_param_from_yaml(robot, identif_data):
     process_params = identif_data["processing_params"][0]
     tls_params = identif_data["tls_params"][0]
 
-    param = {
+    identif_config = {
         "robot_name": robot_name,
         "nb_samples": int(1 / (process_params["ts"])),
         "q_lim_def": robots_params["q_lim_def"],
@@ -71,7 +70,7 @@ def get_param_from_yaml(robot, identif_data):
         "Iam6": robots_params["Iam6"],
         "fvm6": robots_params["fvm6"],
         "fsm6": robots_params["fsm6"],
-        "N": robots_params["N"],
+        "reduction_ratio": robots_params["reduction_ratio"],
         "ratio_essential": robots_params["ratio_essential"],
         "cut_off_frequency_butterworth": process_params[
             "cut_off_frequency_butterworth"
@@ -80,88 +79,90 @@ def get_param_from_yaml(robot, identif_data):
         "mass_load": tls_params["mass_load"],
         "which_body_loaded": tls_params["which_body_loaded"],
     }
-    return param
+    return identif_config
 
 
-def set_missing_params_setting(robot, params_settings):
-    """Set default values for missing robot parameters.
-
-    Fills in missing parameters in the robot model with default values from
-    params_settings when URDF doesn't specify them.
-
+def unified_to_legacy_identif_config(robot, unified_identif_config) -> dict:
+    """Convert unified identification format to legacy identif_config format.
+    
+    Maps the new unified identification configuration structure to produce
+    the exact same output as get_param_from_yaml. This ensures backward
+    compatibility while using the new unified parser.
+    
     Args:
-        robot (pin.RobotWrapper): Robot instance to update
-        params_settings (dict): Default parameter values containing:
-            - q_lim_def: Default joint position limits
-            - dq_lim_def: Default joint velocity limits
-            - tau_lim_def: Default joint torque limits
-            - ddq_lim_def: Default acceleration limits
-            - fv, fs: Default friction parameters
-
+        robot (pin.RobotWrapper): Robot instance containing model and data
+        unified_identif_config (dict): Configuration from create_task_config
+        
     Returns:
-        dict: Updated params_settings with all required parameters
-
-    Side Effects:
-        Modifies robot model in place:
-        - Sets joint limits if undefined
-        - Sets velocity limits if zero
-        - Sets effort limits if zero
-        - Adds acceleration limits
+        dict: Identification configuration matching get_param_from_yaml output
+        
+    Example:
+        >>> unified_config = create_task_config(robot, parsed_config,
+        ...                                    "identification")
+        >>> legacy_config = unified_to_legacy_identif_config(robot,
+        ...                                                  unified_config)
+        >>> # legacy_config has same keys as get_param_from_yaml output
     """
-    # Compare lower and upper position limits
-    diff_limit = np.setdiff1d(
-        robot.model.lowerPositionLimit, robot.model.upperPositionLimit
-    )
-
-    # Set default joint limits if none defined
-    if not diff_limit.any:
-        print("No joint limits. Set default values")
-        for ii in range(robot.model.nq):
-            robot.model.lowerPositionLimit[ii] = -params_settings["q_lim_def"]
-            robot.model.upperPositionLimit[ii] = params_settings["q_lim_def"]
-
-    # Set default velocity limits if zero
-    if np.sum(robot.model.velocityLimit) == 0:
-        print("No velocity limit. Set default value")
-        for ii in range(robot.model.nq):
-            robot.model.velocityLimit[ii] = params_settings["dq_lim_def"]
-
-    # Set default torque limits if zero
-    if np.sum(robot.model.velocityLimit) == 0:
-        print("No joint torque limit. Set default value")
-        for ii in range(robot.model.nq):
-            robot.model.effortLimit[ii] = -params_settings["tau_lim_def"]
-
-    # Set acceleration limits
-    accelerationLimit = np.zeros(robot.model.nq)
-    for ii in range(robot.model.nq):
-        # accelerationLimit to be consistent with PIN naming
-        accelerationLimit[ii] = params_settings["ddq_lim_def"]
-    params_settings["accelerationLimit"] = accelerationLimit
-
-    # Set friction parameters if needed
-    if params_settings["has_friction"]:
-        for ii in range(robot.model.nv):
-            if ii == 0:
-                # Default viscous friction values
-                fv = [(ii + 1) / 10]
-                # Default static friction values
-                fs = [(ii + 1) / 10]
-            else:
-                fv.append((ii + 1) / 10)
-                fs.append((ii + 1) / 10)
-
-        params_settings["fv"] = fv
-        params_settings["fs"] = fs
-
-    # Set external wrench offsets if needed
-    if params_settings["external_wrench_offsets"]:
-        # Set for a footprint of dim (1.8mx0.9m) at its center
-        params_settings["OFFX"] = 900
-        params_settings["OFFY"] = 450
-        params_settings["OFFZ"] = 0
-
-    return params_settings
+    # Extract unified config sections
+    mechanics = unified_identif_config.get("mechanics", {})
+    joints = unified_identif_config.get("joints", {})
+    problem = unified_identif_config.get("problem", {})
+    coupling = unified_identif_config.get("coupling", {})
+    signal_processing = unified_identif_config.get("signal_processing", {})
+    
+    # Get robot name
+    robot_name = robot.model.name
+    
+    # Extract values from unified config with defaults
+    joint_limits = joints.get("joint_limits", {})
+    velocity_limits = joint_limits.get("velocity", [0.05] * 12)
+    model_components = problem.get("model_components", {})
+    ft_sensors = problem.get("force_torque_sensors", [])
+    force_torque = ft_sensors[0] if ft_sensors else None
+    
+    # Get sampling parameters
+    sampling_freq = signal_processing.get("sampling_frequency", 5000.0)
+    ts = 1.0 / sampling_freq
+    cutoff_freq = signal_processing.get("cutoff_frequency", 100.0)
+    
+    # Build the exact same structure as get_param_from_yaml returns
+    identif_config = {
+        "robot_name": robot_name,
+        "nb_samples": int(1 / ts),  # Same calculation as get_param_from_yaml
+        "q_lim_def": 1.57,  # Default joint position limit
+        "dq_lim_def": velocity_limits,
+        "is_external_wrench": problem.get("include_external_forces", False),
+        "is_joint_torques": problem.get("use_joint_torques", True),
+        "force_torque": force_torque,
+        "external_wrench_offsets": problem.get(
+            "external_wrench_offsets", False
+        ),
+        "has_friction": model_components.get("friction", True),
+        "fv": mechanics.get("friction_coefficients", {}).get(
+            "viscous", [0] * 12
+        ),
+        "fs": mechanics.get("friction_coefficients", {}).get(
+            "static", [0] * 12
+        ),
+        "has_actuator_inertia": model_components.get("actuator_inertia", True),
+        "Ia": mechanics.get("actuator_inertias", [0] * 12),
+        "has_joint_offset": model_components.get("joint_offset", True),
+        "off": mechanics.get("joint_offsets", [0] * 12),
+        "has_coupled_wrist": coupling.get("has_coupled_wrist", True),
+        "Iam6": coupling.get("Iam6", 0),
+        "fvm6": coupling.get("fvm6", 0),
+        "fsm6": coupling.get("fsm6", 0),
+        "reduction_ratio": mechanics.get(
+            "reduction_ratios", [32.0, 32.0, 45.0, -48.0, 45.0, 32.0]
+        ),
+        "ratio_essential": mechanics.get("ratio_essential", 30.0),
+        "cut_off_frequency_butterworth": cutoff_freq,
+        "ts": ts,
+        "mass_load": 0.0,  # Default: no external mass
+        "which_body_loaded": 0.0,  # Default: no external load
+    }
+    
+    return identif_config
 
 
 def base_param_from_standard(phi_standard, params_base):
@@ -285,7 +286,7 @@ def index_in_base_params(params, id_segments):
     return dict(zip(id_segments_new, values))
 
 
-def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
+def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, identif_config):
     """Compute weighted least squares solution for parameter identification.
 
     Implements iteratively reweighted least squares method from
@@ -304,15 +305,15 @@ def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
     """
     sigma = np.zeros(robot.model.nq)  # For ground reaction force model
     P = np.zeros((len(tau_meas), len(tau_meas)))
-    nb_samples = int(param["idx_tau_stop"][0])
+    nb_samples = int(identif_config["idx_tau_stop"][0])
     start_idx = int(0)
     for ii in range(robot.model.nq):
-        tau_slice = slice(int(start_idx), int(param["idx_tau_stop"][ii]))
+        tau_slice = slice(int(start_idx), int(identif_config["idx_tau_stop"][ii]))
         diff = tau_meas[tau_slice] - tau_est[tau_slice]
         denom = len(tau_meas[tau_slice]) - len(phi_b)
         sigma[ii] = np.linalg.norm(diff) / denom
 
-        start_idx = param["idx_tau_stop"][ii]
+        start_idx = identif_config["idx_tau_stop"][ii]
 
         for jj in range(nb_samples):
             idx = jj + ii * nb_samples
@@ -327,7 +328,7 @@ def weigthed_least_squares(robot, phi_b, W_b, tau_meas, tau_est, param):
     return phi_b
 
 
-def calculate_first_second_order_differentiation(model, q, param, dt=None):
+def calculate_first_second_order_differentiation(model, q, identif_config, dt=None):
     """Calculate joint velocities and accelerations from positions.
 
     Computes first and second order derivatives of joint positions using central
@@ -352,16 +353,16 @@ def calculate_first_second_order_differentiation(model, q, param, dt=None):
         Two samples are removed from start/end due to central differences
     """
 
-    if param["is_joint_torques"]:
+    if identif_config["is_joint_torques"]:
         dq = np.zeros([q.shape[0] - 1, q.shape[1]])
         ddq = np.zeros([q.shape[0] - 1, q.shape[1]])
 
-    if param["is_external_wrench"]:
+    if identif_config["is_external_wrench"]:
         dq = np.zeros([q.shape[0] - 1, q.shape[1] - 1])
         ddq = np.zeros([q.shape[0] - 1, q.shape[1] - 1])
 
     if dt is None:
-        dt = param["ts"]
+        dt = identif_config["ts"]
         for ii in range(q.shape[0] - 1):
             dq[ii, :] = pin.difference(model, q[ii, :], q[ii + 1, :]) / dt
 
@@ -383,7 +384,7 @@ def calculate_first_second_order_differentiation(model, q, param, dt=None):
     return q, dq, ddq
 
 
-def low_pass_filter_data(data, param, nbutter=5):
+def low_pass_filter_data(data, identif_config, nbutter=5):
     """Apply zero-phase Butterworth low-pass filter to measurement data.
 
     Uses scipy's filtfilt for zero-phase digital filtering. Removes high
@@ -405,7 +406,7 @@ def low_pass_filter_data(data, param, nbutter=5):
         Border effects are handled by removing nborder = 5*nbutter samples
         from start and end of filtered signal.
     """
-    cutoff = param["ts"] * param["cut_off_frequency_butterworth"] / 2
+    cutoff = identif_config["ts"] * identif_config["cut_off_frequency_butterworth"] / 2
     b, a = signal.butter(nbutter, cutoff, "low")
 
     padlen = 3 * (max(len(b), len(a)) - 1)
@@ -420,149 +421,379 @@ def low_pass_filter_data(data, param, nbutter=5):
     return data
 
 
-# SIP QP OPTIMISATION
-
-
-def quadprog_solve_qp(P, q, G=None, h=None, A=None, b=None):
-    """Solve a Quadratic Program defined as:
-
-    minimize    1/2 x^T P x + q^T x
-    subject to  G x <= h
-                A x = b
-
+def reorder_inertial_parameters(pinocchio_params):
+    """Reorder inertial parameters from Pinocchio format to desired format.
+    
     Args:
-        P (ndarray): Symmetric quadratic cost matrix (n x n)
-        q (ndarray): Linear cost vector (n)
-        G (ndarray, optional): Linear inequality constraint matrix (m x n).
-        h (ndarray, optional): Linear inequality constraint vector (m).
-        A (ndarray, optional): Linear equality constraint matrix (p x n).
-        b (ndarray, optional): Linear equality constraint vector (p).
-
+        pinocchio_params: Parameters in Pinocchio order
+            [m, mx, my, mz, Ixx, Ixy, Iyy, Ixz, Iyz, Izz]
+        
     Returns:
-        ndarray: Optimal solution vector x* (n)
-
-    Note:
-        Ensures P is symmetric positive definite by adding small identity matrix
+        list: Parameters in desired order
+            [Ixx, Ixy, Ixz, Iyy, Iyz, Izz, mx, my, mz, m]
     """
-    qp_G = 0.5 * (P + P.T) + np.eye(P.shape[0]) * (
-        1e-5
-    )  # make sure P is symmetric, pos,def
-    qp_a = -q
-    if A is not None:
-        qp_C = -np.vstack([A, G]).T
-        qp_b = -np.hstack([b, h])
-        meq = A.shape[0]
-    else:  # no equality constraint
-        qp_C = -G.T
-        qp_b = -h
-        meq = 0
-    return quadprog.solve_qp(qp_G, qp_a, qp_C, qp_b, meq)[0]
+    if len(pinocchio_params) != 10:
+        raise ValueError(
+            f"Expected 10 inertial parameters, got {len(pinocchio_params)}"
+        )
+    
+    # Mapping from Pinocchio indices to desired indices
+    reordered = np.zeros_like(pinocchio_params)
+    reordered[0] = pinocchio_params[4]  # Ixx
+    reordered[1] = pinocchio_params[5]  # Ixy
+    reordered[2] = pinocchio_params[7]  # Ixz
+    reordered[3] = pinocchio_params[6]  # Iyy
+    reordered[4] = pinocchio_params[8]  # Iyz
+    reordered[5] = pinocchio_params[9]  # Izz
+    reordered[6] = pinocchio_params[1]  # mx
+    reordered[7] = pinocchio_params[2]  # my
+    reordered[8] = pinocchio_params[3]  # mz
+    reordered[9] = pinocchio_params[0]  # m
+    
+    return reordered.tolist()
 
 
-def calculate_standard_parameters(
-    model, W, tau, COM_max, COM_min, params_standard_u, alpha
-):
-    """Calculate optimal standard inertial parameters via quadratic
-    programming.
-
-    Finds standard parameters that:
-    1. Best fit measurement data (tau)
-    2. Stay close to reference values from URDF
-    3. Keep COM positions within physical bounds
-
+def add_standard_additional_parameters(phi, params, identif_config, model):
+    """Add standard additional parameters (actuator inertia, friction,
+    offsets).
+    
     Args:
-        model (pin.Model): Robot model containing inertias
-        W (ndarray): Regressor matrix mapping parameters to measurements
-        tau (ndarray): Measured force/torque data
-        COM_max (ndarray): Upper bounds on center of mass positions
-        COM_min (ndarray): Lower bounds on center of mass positions
-        params_standard_u (dict): Reference parameters from URDF
-        alpha (float): Weight between fitting data (1) vs staying near refs (0)
-
+        phi: Current parameter values list
+        params: Current parameter names list
+        identif_config: Configuration dictionary
+        model: Robot model
+        
     Returns:
-        tuple:
-            - phi_standard (ndarray): Optimized standard parameters
-            - phi_ref (ndarray): Reference parameters from URDF
-
-    Note:
-        Constrains parameters to stay within [0.7, 1.3] times reference values
-        except for COM positions which use explicit bounds.
+        tuple: Updated (phi, params) lists
     """
-    np.set_printoptions(threshold=np.inf)
-    phi_ref = []
-    id_inertias = []
+    num_joints = len(model.inertias) - 1  # Exclude world link
+    
+    # Standard additional parameters configuration
+    additional_params = [
+        {
+            'name': 'Ia',
+            'enabled_key': 'has_actuator_inertia',
+            'values_key': 'Ia',
+            'default': 0.0,
+            'description': 'actuator inertia'
+        },
+        {
+            'name': 'fv',
+            'enabled_key': 'has_friction',
+            'values_key': 'fv',
+            'default': 0.0,
+            'description': 'viscous friction'
+        },
+        {
+            'name': 'fs',
+            'enabled_key': 'has_friction',
+            'values_key': 'fs',
+            'default': 0.0,
+            'description': 'static friction'
+        },
+        {
+            'name': 'off',
+            'enabled_key': 'has_joint_offset',
+            'values_key': 'off',
+            'default': 0.0,
+            'description': 'joint offset'
+        }
+    ]
+    
+    for link_idx in range(1, num_joints + 1):
+        for param_def in additional_params:
+            param_name = f"{param_def['name']}{link_idx}"
+            params.append(param_name)
+            
+            # Get parameter value
+            if identif_config.get(param_def['enabled_key'], False):
+                try:
+                    values_list = identif_config.get(param_def['values_key'], [])
+                    if len(values_list) >= link_idx:
+                        value = values_list[link_idx - 1]
+                    else:
+                        value = param_def['default']
+                        print(f"Warning: Missing {param_def['description']} "
+                              f"for joint {link_idx}, using default: {value}")
+                except (KeyError, IndexError, TypeError) as e:
+                    value = param_def['default']
+                    print(f"Warning: Error getting {param_def['description']} "
+                          f"for joint {link_idx}: {e}, using default: {value}")
+            else:
+                value = param_def['default']
+            
+            phi.append(value)
+    
+    return phi, params
 
-    for jj in range(len(model.inertias.tolist())):
-        if model.inertias.tolist()[jj].mass != 0:
-            id_inertias.append(jj)
 
-    nreal = len(id_inertias)
+def add_custom_parameters(phi, params, custom_params, model):
+    """Add custom user-defined parameters.
+    
+    Args:
+        phi: Current parameter values list
+        params: Current parameter names list
+        custom_params: Custom parameter definitions
+        model: Robot model
+        
+    Returns:
+        tuple: Updated (phi, params) lists
+    """
+    num_joints = len(model.inertias) - 1  # Exclude world link
+    
+    for param_name, param_def in custom_params.items():
+        if not isinstance(param_def, dict):
+            print(f"Warning: Invalid custom parameter definition for "
+                  f"'{param_name}', skipping")
+            continue
+            
+        values = param_def.get('values', [])
+        per_joint = param_def.get('per_joint', True)
+        default_value = param_def.get('default', 0.0)
+        
+        if per_joint:
+            # Add parameter for each joint
+            for link_idx in range(1, num_joints + 1):
+                param_full_name = f"{param_name}{link_idx}"
+                params.append(param_full_name)
+                
+                try:
+                    if len(values) >= link_idx:
+                        value = values[link_idx - 1]
+                    else:
+                        value = default_value
+                        # Only warn if values were provided but insufficient
+                        if values:
+                            print(f"Warning: Missing value for custom "
+                                  f"parameter '{param_name}' joint "
+                                  f"{link_idx}, using default: {value}")
+                except (IndexError, TypeError):
+                    value = default_value
+                    print(f"Warning: Error accessing custom parameter "
+                          f"'{param_name}' for joint {link_idx}, "
+                          f"using default: {value}")
+                
+                phi.append(value)
+        else:
+            # Global parameter (not per joint)
+            params.append(param_name)
+            try:
+                value = values[0] if values else default_value
+            except (IndexError, TypeError):
+                value = default_value
+                print(f"Warning: Error accessing global custom parameter "
+                      f"'{param_name}', using default: {value}")
+            
+            phi.append(value)
+    
+    return phi, params
 
-    params_name = (
-        "Ixx",
-        "Ixy",
-        "Ixz",
-        "Iyy",
-        "Iyz",
-        "Izz",
-        "mx",
-        "my",
-        "mz",
-        "m",
+
+def get_standard_parameters(model, identif_config=None, include_additional=True,
+                            custom_params=None):
+    """Get standard inertial parameters from robot model with extensible
+    parameter support.
+    
+    Args:
+        model: Robot model (Pinocchio model)
+        param (dict, optional): Dictionary of parameter settings for
+            additional parameters. Expected keys:
+            - has_actuator_inertia (bool): Include actuator inertia parameters
+            - has_friction (bool): Include friction parameters
+            - has_joint_offset (bool): Include joint offset parameters
+            - Ia (list): Actuator inertia values
+            - fv (list): Viscous friction coefficients
+            - fs (list): Static friction coefficients
+            - off (list): Joint offset values
+        include_additional (bool): Whether to include additional parameters
+            beyond inertial
+        custom_params (dict, optional): Custom parameter definitions
+            Format: {param_name: {values: list, per_joint: bool,
+            default: float}}
+            
+    Returns:
+        dict: Parameter names mapped to their values
+        
+    Examples:
+        # Basic usage - only inertial parameters
+        params = get_standard_parameters(robot.model)
+        
+        # Include standard additional parameters
+        identif_config = {
+            'has_actuator_inertia': True,
+            'has_friction': True,
+            'Ia': [0.1, 0.2, 0.3],
+            'fv': [0.01, 0.02, 0.03],
+            'fs': [0.001, 0.002, 0.003]
+        }
+        params = get_standard_parameters(robot.model, identif_config)
+        
+        # Add custom parameters
+        custom = {
+            'gear_ratio': {'values': [100, 50, 25], 'per_joint': True,
+                          'default': 1.0},
+            'temperature': {'values': [20.0], 'per_joint': False,
+                           'default': 25.0}
+        }
+        params = get_standard_parameters(robot.model, identif_config,
+                                        custom_params=custom)
+    """
+    if identif_config is None:
+        identif_config = {}
+    
+    if custom_params is None:
+        custom_params = {}
+    
+    phi = []
+    params = []
+    
+    # Standard inertial parameter names in desired order
+    inertial_params = [
+        "Ixx", "Ixy", "Ixz", "Iyy", "Iyz", "Izz",
+        "mx", "my", "mz", "m"
+    ]
+    
+    # Extract and rearrange inertial parameters for each link
+    for link_idx in range(1, len(model.inertias)):
+        # Get dynamic parameters from Pinocchio (in Pinocchio order)
+        pinocchio_params = model.inertias[link_idx].toDynamicParameters()
+        
+        # Rearrange from Pinocchio order [m, mx, my, mz, Ixx, Ixy, Iyy, Ixz,
+        # Iyz, Izz] to desired order [Ixx, Ixy, Ixz, Iyy, Iyz, Izz, mx, my,
+        # mz, m]
+        reordered_params = reorder_inertial_parameters(pinocchio_params)
+        
+        # Add parameter names and values
+        for param_name in inertial_params:
+            params.append(f"{param_name}{link_idx}")
+        phi.extend(reordered_params)
+    
+    # Add additional standard parameters if requested
+    if include_additional:
+        phi, params = add_standard_additional_parameters(
+            phi, params, identif_config, model
+        )
+    
+    # Add custom parameters if provided
+    if custom_params:
+        phi, params = add_custom_parameters(phi, params, custom_params, model)
+    
+    return dict(zip(params, phi))
+
+
+def get_parameter_info():
+    """Get information about available parameter types.
+    
+    Returns:
+        dict: Information about standard and custom parameter types
+    """
+    return {
+        'inertial_parameters': [
+            "Ixx", "Ixy", "Ixz", "Iyy", "Iyz", "Izz",
+            "mx", "my", "mz", "m"
+        ],
+        'standard_additional': {
+            'actuator_inertia': {
+                'name': 'Ia',
+                'enabled_key': 'has_actuator_inertia',
+                'values_key': 'Ia',
+                'description': 'Actuator/rotor inertia'
+            },
+            'viscous_friction': {
+                'name': 'fv',
+                'enabled_key': 'has_friction',
+                'values_key': 'fv',
+                'description': 'Viscous friction coefficient'
+            },
+            'static_friction': {
+                'name': 'fs',
+                'enabled_key': 'has_friction',
+                'values_key': 'fs',
+                'description': 'Static friction coefficient'
+            },
+            'joint_offset': {
+                'name': 'off',
+                'enabled_key': 'has_joint_offset',
+                'values_key': 'off',
+                'description': 'Joint position offset'
+            }
+        },
+        'custom_parameters_format': {
+            'parameter_name': {
+                'values': 'list of values',
+                'per_joint': 'boolean - if True, creates param for each joint',
+                'default': 'default value if not enough values provided'
+            }
+        }
+    }
+
+
+# Backward compatibility wrapper for get_param_from_yaml
+def get_param_from_yaml_legacy(robot, identif_data) -> dict:
+    """Legacy identification parameter parser - kept for backward compatibility.
+    
+    This is the original implementation. New code should use the unified
+    config parser from figaroh.utils.config_parser.
+    
+    Args:
+        robot: Robot instance
+        identif_data: Identification data dictionary
+        
+    Returns:
+        Identification configuration dictionary
+    """
+    # Keep the original implementation here for compatibility
+    return get_param_from_yaml(robot, identif_data)
+
+
+# Import the new unified parser as the default
+try:
+    from ..utils.config_parser import (
+        get_param_from_yaml as unified_get_param_from_yaml
     )
+    
+    # Replace the function with unified version while maintaining signature
+    def get_param_from_yaml_unified(robot, identif_data) -> dict:
+        """Enhanced parameter parser using unified configuration system.
+        
+        This function provides backward compatibility while using the new
+        unified configuration parser when possible.
+        
+        Args:
+            robot: Robot instance
+            identif_data: Configuration data (dict or file path)
+            
+        Returns:
+            Identification configuration dictionary
+        """
+        try:
+            return unified_get_param_from_yaml(
+                robot, identif_data, "identification"
+            )
+        except Exception as e:
+            # Fall back to legacy parser if unified parser fails
+            import warnings
+            warnings.warn(
+                f"Unified parser failed ({e}), falling back to legacy parser. "
+                "Consider updating your configuration format.",
+                UserWarning
+            )
+            return get_param_from_yaml_legacy(robot, identif_data)
+    
+    # Keep the old function available but with warning
+    def get_param_from_yaml_with_warning(robot, identif_data) -> dict:
+        """Original function with deprecation notice."""
+        import warnings
+        warnings.warn(
+            "Direct use of get_param_from_yaml is deprecated. "
+            "Consider using the unified config parser from "
+            "figaroh.utils.config_parser",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return get_param_from_yaml_unified(robot, identif_data)
+        
+except ImportError:
+    # If unified parser is not available, keep using original function
+    pass
 
-    for k in range(nreal):
-        for j in params_name:
-            phi_ref_temp = params_standard_u[j + str(id_inertias[k])]
-            phi_ref.append(phi_ref_temp)
-
-    phi_ref = np.array(phi_ref)
-
-    sf1 = 1 / (np.max(phi_ref) * len(phi_ref))
-    sf2 = 1 / (np.max(tau) * len(tau))
-
-    P = (1 - alpha) * sf1 * np.eye(W.shape[1]) + alpha * sf2 * np.matmul(
-        W.T, W
-    )
-    r = -((1 - alpha) * sf1 * phi_ref.T + sf2 * alpha * np.matmul(tau.T, W))
-
-    # Setting constraints
-    G = np.zeros(((14) * (nreal), 10 * nreal))
-    h = np.zeros((((14) * (nreal), 1)))
-
-    for ii in range(nreal):
-        G[14 * ii][ii * 10 + 6] = 1  # mx<mx+
-        h[14 * ii] = COM_max[3 * ii]
-        G[14 * ii + 1][ii * 10 + 6] = -1  # mx>mx-
-        h[14 * ii + 1] = -COM_min[3 * ii]
-        G[14 * ii + 2][ii * 10 + 7] = 1  # my<my+
-        h[14 * ii + 2] = COM_max[3 * ii + 1]
-        G[14 * ii + 3][ii * 10 + 7] = -1  # my>my-
-        h[14 * ii + 3] = -COM_min[3 * ii + 1]
-        G[14 * ii + 4][ii * 10 + 8] = 1  # mz<mz+
-        h[14 * ii + 4] = COM_max[3 * ii + 2]
-        G[14 * ii + 5][ii * 10 + 8] = -1  # mz>mz-
-        h[14 * ii + 5] = -COM_min[3 * ii + 2]
-        G[14 * ii + 6][ii * 10 + 9] = 1  # m<m+
-        h[14 * ii + 6] = 1.3 * phi_ref[ii * 10 + 9]
-        G[14 * ii + 7][ii * 10 + 9] = -1  # m>m-
-        h[14 * ii + 7] = -0.7 * phi_ref[ii * 10 + 9]
-        G[14 * ii + 8][ii * 10 + 0] = 1  # Ixx<Ixx+
-        h[14 * ii + 8] = 1.3 * phi_ref[ii * 10 + 0]
-        G[14 * ii + 9][ii * 10 + 0] = -1  # Ixx>Ixx-
-        h[14 * ii + 9] = -0.7 * phi_ref[ii * 10 + 0]
-        G[14 * ii + 10][ii * 10 + 3] = 1  # Iyy<Iyy+
-        h[14 * ii + 10] = 1.3 * phi_ref[ii * 10 + 3]
-        G[14 * ii + 11][ii * 10 + 3] = -1  # Iyy>Iyy-
-        h[14 * ii + 11] = -0.7 * phi_ref[ii * 10 + 3]
-        G[14 * ii + 12][ii * 10 + 5] = 1  # Izz<Izz+
-        h[14 * ii + 12] = 1.3 * phi_ref[ii * 10 + 5]
-        G[14 * ii + 13][ii * 10 + 5] = -1  # Izz>Izz-
-        h[14 * ii + 13] = -0.7 * phi_ref[ii * 10 + 5]
-
-    # print(G.shape,h.shape,A.shape,b.shape)
-
-    # SOLVING
-    phi_standard = quadprog_solve_qp(P, r, G, h.reshape((G.shape[0],)))
-
-    return phi_standard, phi_ref
