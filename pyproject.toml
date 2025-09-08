@@ -43,12 +43,16 @@ classifiers = [
 dependencies = [
     "numpy",
     "scipy",
-    "numdifftools",
-    "ndcurves",
+    "pin",
     "matplotlib",
+    "pyyaml",
     "meshcat",
     "pandas",
     "rospkg",
+    "picos",
+    "numdifftools",
+    "ndcurves",
+    "cyipopt",
 ]
 
 [project.optional-dependencies]

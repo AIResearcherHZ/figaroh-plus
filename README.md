@@ -16,25 +16,43 @@ Note: This repo is a fork from [gitlab repo](https://gitlab.laas.fr/gepetto/figa
 
 ## Installation
 
-### Package Installation
+### Quick Installation (Recommended)
 
-Install the core FIGAROH package:
+Install the core FIGAROH package with all dependencies (except for cyipopt):
 
 ```bash
-# Install from PyPI
+# Install from PyPI (includes all core dependencies)
 pip install figaroh
+```
 
+### Development Installation
+
+For development or local installation from source, choose one of these methods:
+
+**Method 1: Direct pip installation (Simple)**
 ```bash
-# Or install from source
 git clone https://github.com/thanhndv212/figaroh-plus.git
 cd figaroh
 pip install -e .
 ```
+
+**Method 2: Conda environment (Recommended for the use of cyipopt)**
+```bash
+git clone https://github.com/thanhndv212/figaroh-plus.git
+cd figaroh
+# Create conda environment with optimized C++ libraries
+conda env create -f environment.yml
+conda activate figaroh-dev
 ```
+
+The conda environment automatically installs:
+- Python 3.12
+- cyipopt (C++ optimization library via conda-forge)  
+- All other dependencies via pip
 
 ### Examples and Tutorials
 
-Examples are maintained in a separate repository to keep the core package lightweight:
+Examples are maintained in a separate repository:
 
 ```bash
 # Clone examples repository
@@ -45,31 +63,33 @@ cd figaroh-examples
 pip install -r requirements.txt
 ```
 
-### Development Environment
+## Dependencies
 
-For development with all dependencies:
+FIGAROH automatically installs the following core dependencies:
 
-```bash
-conda env create -f environment.yml
-conda activate figaroh-dev
-pip install -e .
-```
-## Prerequisites
+**Scientific Computing:**
+- `numpy` - Array processing and linear algebra
+- `scipy` - Scientific computing and optimization
+- `matplotlib` - Plotting and visualization
+- `pandas` - Data processing and analysis
+- `numdifftools` - Numerical differentiation
 
-FIGAROH has the following core dependencies (automatically installed with pip):
-* numpy
-* scipy
-* matplotlib
-* numdifftools
-* ndcurves
-* meshcat
-* rospkg
-* pandas
+**Robotics Libraries:**  
+- `pin` - [Pinocchio](https://github.com/stack-of-tasks/pinocchio) robotics library (PyPI version)
+- `pyyaml` - Configuration file parsing
+- `ndcurves` - Curve generation and interpolation
+- `meshcat` - 3D visualization
+- `rospkg` - ROS package utilities
 
-**Note:** Some dependencies should be installed via conda for better compatibility:
-```bash
-conda install -c conda-forge pinocchio cyipopt
-```
+**Optimization Dependencies:**
+- `cyipopt` - Advanced optimization (automatically installed via conda environment, or install manually: `pip install cyipopt`)
+- `picos` - Convex optimization
+### Installation Notes
+
+- **Simplified Dependencies**: All core dependencies are now available via PyPI and install automatically
+- **No Manual Compilation**: Pre-built wheels eliminate the need for C++ compilation
+- **Flexible Installation**: Works with both pip-only and conda environments
+- **Lazy Loading**: Optional dependencies (like cyipopt) are loaded only when needed
 
 ## Features
 
@@ -228,10 +248,8 @@ identification:
 Complete examples and tutorials are available in a separate repository: [figaroh-examples](https://github.com/thanhndv212/figaroh-examples)
 
 The examples include:
-- **Human modeling**: Joint center estimation, segment inertial identification
 - **Industrial manipulator Staubli TX40**: Dynamic inertial parameters identification
 - **Industrial manipulator Universal UR10**: Geometric calibration using RealSense camera and checkerboard
-- **3D-printed 3DOF manipulator MATE**: Geometric calibration using ArUco markers
 - **Mobile manipulator TIAGo**: Dynamic identification, geometric calibration, mobile base modeling
 - **Humanoid TALOS**: Torso-arm geometric calibration, whole-body calibration
 
