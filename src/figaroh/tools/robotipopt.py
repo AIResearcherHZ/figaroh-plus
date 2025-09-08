@@ -166,14 +166,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Optional, Any, Callable, Union
 
-try:
-    import cyipopt
-except ImportError:
-    raise ImportError(
-        "cyipopt is required for IPOPT optimization. "
-        "Install with: pip install cyipopt"
-    )
-
 
 @dataclass
 class IPOPTConfig:
@@ -752,6 +744,15 @@ class RobotIPOPTSolver:
             indicate various types of failures or early termination.
         """
         try:
+            # Import cyipopt only when needed
+            try:
+                import cyipopt
+            except ImportError:
+                raise ImportError(
+                    "cyipopt is required for IPOPT optimization. "
+                    "Install with: pip install cyipopt"
+                )
+                
             self.logger.info(f"Setting up IPOPT problem: {self.problem.name}")
             
             # Get problem dimensions and bounds
