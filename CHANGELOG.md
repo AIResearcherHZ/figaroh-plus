@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-09-08
+
+### Added
+- **Streamlined Dependencies**: All core dependencies now available via PyPI with automatic installation
+- **Lazy Loading**: Optional dependencies (cyipopt) now loaded only when needed to improve startup time
+- **Enhanced Installation Notes**: Clear documentation of simplified dependency management
+
+### Improved
+- **Dependency Management**: Complete cleanup and optimization of package dependencies
+  - Removed redundant `requirements.txt` and `setup.py` files
+  - Consolidated all dependencies in `pyproject.toml`
+  - Updated to use PyPI versions of robotics libraries (`pin` for Pinocchio)
+- **Installation Process**: Significantly simplified installation with better cross-platform compatibility
+- **Documentation**: Comprehensive README updates reflecting modern packaging standards
+  - Combined development installation methods for clarity
+  - Added official Pinocchio repository reference
+  - Updated dependency documentation with descriptions
+- **Performance**: Faster module loading through localized imports
+- **Environment Setup**: Streamlined conda environment with minimal dependencies
+
+### Enhanced
+- **Import Strategy**: Localized cyipopt import to specific functions for better error handling
+- **Error Messages**: More informative import error messages with installation instructions
+- **Package Structure**: Modern Python packaging standards with pyproject.toml-only approach
+
+### Removed
+- **Redundant Files**: Eliminated `requirements.txt` and `setup.py` in favor of modern `pyproject.toml`
+- **Unnecessary Dependencies**: Cleaned up unused dependencies for leaner installation
+
+### Fixed
+- **Package Name**: Corrected dependency references (e.g., proper use of `pin` for Pinocchio PyPI version)
+- **Installation Conflicts**: Resolved potential conflicts between conda and pip installations
+
 ## [0.2.0] - 2025-09-05
 
 ### Added
