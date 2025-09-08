@@ -67,20 +67,9 @@ docs = [
     "sphinx-autodoc-typehints",
 ]
 examples = [
-    "opencv-python>=4.5.0",
-    "opencv-contrib-python>=4.5.0",
-    "pillow",
-    "pyyaml",
-    "tqdm",
-    "plotly",
     "jupyter",
     "notebook",
     "ipywidgets",
-    "transforms3d",
-    "open3d",
-    "trimesh",
-    "ipympl",
-    "seaborn",
 ]
 
 [tool.hatch.build.targets.wheel]
