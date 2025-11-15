@@ -466,7 +466,6 @@ def add_standard_additional_parameters(phi, params, identif_config, model):
     Returns:
         tuple: Updated (phi, params) lists
     """
-    num_joints = len(model.inertias) - 1  # Exclude world link
     
     # Standard additional parameters configuration
     additional_params = [
@@ -500,25 +499,25 @@ def add_standard_additional_parameters(phi, params, identif_config, model):
         }
     ]
     
-    for link_idx in range(1, num_joints + 1):
+    for link_idx, jname in enumerate(model.names[1:]):  # Skip world link
         for param_def in additional_params:
-            param_name = f"{param_def['name']}{link_idx}"
+            param_name = f"{param_def['name']}_{jname}"
             params.append(param_name)
             
             # Get parameter value
             if identif_config.get(param_def['enabled_key'], False):
                 try:
                     values_list = identif_config.get(param_def['values_key'], [])
-                    if len(values_list) >= link_idx:
-                        value = values_list[link_idx - 1]
+                    if len(values_list) >= link_idx + 1:
+                        value = values_list[link_idx]
                     else:
                         value = param_def['default']
                         print(f"Warning: Missing {param_def['description']} "
-                              f"for joint {link_idx}, using default: {value}")
+                              f"for joint {jname}, using default: {value}")
                 except (KeyError, IndexError, TypeError) as e:
                     value = param_def['default']
                     print(f"Warning: Error getting {param_def['description']} "
-                          f"for joint {link_idx}: {e}, using default: {value}")
+                          f"for joint {jname}: {e}, using default: {value}")
             else:
                 value = param_def['default']
             
@@ -539,7 +538,6 @@ def add_custom_parameters(phi, params, custom_params, model):
     Returns:
         tuple: Updated (phi, params) lists
     """
-    num_joints = len(model.inertias) - 1  # Exclude world link
     
     for param_name, param_def in custom_params.items():
         if not isinstance(param_def, dict):
@@ -553,24 +551,24 @@ def add_custom_parameters(phi, params, custom_params, model):
         
         if per_joint:
             # Add parameter for each joint
-            for link_idx in range(1, num_joints + 1):
-                param_full_name = f"{param_name}{link_idx}"
+            for link_idx, jname in enumerate(model.names[1:]):  # Skip world link
+                param_full_name = f"{param_name}_{jname}"
                 params.append(param_full_name)
                 
                 try:
-                    if len(values) >= link_idx:
-                        value = values[link_idx - 1]
+                    if len(values) >= link_idx + 1:
+                        value = values[link_idx]
                     else:
                         value = default_value
                         # Only warn if values were provided but insufficient
                         if values:
                             print(f"Warning: Missing value for custom "
                                   f"parameter '{param_name}' joint "
-                                  f"{link_idx}, using default: {value}")
+                                  f"{jname}, using default: {value}")
                 except (IndexError, TypeError):
                     value = default_value
                     print(f"Warning: Error accessing custom parameter "
-                          f"'{param_name}' for joint {link_idx}, "
+                          f"'{param_name}' for joint {jname}, "
                           f"using default: {value}")
                 
                 phi.append(value)
@@ -654,30 +652,38 @@ def get_standard_parameters(model, identif_config=None, include_additional=True,
     ]
     
     # Extract and rearrange inertial parameters for each link
-    for link_idx in range(1, len(model.inertias)):
+    assert len(model.inertias) == model.njoints, "Inertia count mismatch with joints"
+    for link_idx, jname in enumerate(model.names[1:]):
         # Get dynamic parameters from Pinocchio (in Pinocchio order)
+        # Returns the representation of the matrix as a vector of dynamic
+        # parameters. The parameters are given as 𝑣=[𝑚,𝑚𝑐𝑥,𝑚𝑐𝑦,𝑚𝑐𝑧,
+        # 𝐼𝑥𝑥,𝐼𝑥𝑦,𝐼𝑦𝑦,𝐼𝑥𝑧,𝐼𝑦𝑧,𝐼𝑧𝑧]^𝑇 where 𝑐 is the center
+        # of mass, 𝐼=𝐼𝐶+𝑚𝑆𝑇(𝑐)𝑆(𝑐) and 𝐼𝐶 has its origin at the
+        # barycenter and 𝑆(𝑐) is the the skew matrix representation of the
+        # cross product operator from Vector of spatial inertias supported by
+        # each joint.
         pinocchio_params = model.inertias[link_idx].toDynamicParameters()
-        
+
         # Rearrange from Pinocchio order [m, mx, my, mz, Ixx, Ixy, Iyy, Ixz,
         # Iyz, Izz] to desired order [Ixx, Ixy, Ixz, Iyy, Iyz, Izz, mx, my,
         # mz, m]
         reordered_params = reorder_inertial_parameters(pinocchio_params)
-        
+
         # Add parameter names and values
         for param_name in inertial_params:
-            params.append(f"{param_name}{link_idx}")
+            params.append(f"{param_name}_{jname}")
         phi.extend(reordered_params)
-    
+
     # Add additional standard parameters if requested
     if include_additional:
         phi, params = add_standard_additional_parameters(
             phi, params, identif_config, model
         )
-    
+
     # Add custom parameters if provided
     if custom_params:
         phi, params = add_custom_parameters(phi, params, custom_params, model)
-    
+
     return dict(zip(params, phi))
 
 
@@ -796,4 +802,3 @@ try:
 except ImportError:
     # If unified parser is not available, keep using original function
     pass
-
