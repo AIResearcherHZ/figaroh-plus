@@ -26,7 +26,6 @@ This module contains the implementation of calibration algorithms including:
 import numpy as np
 import pinocchio as pin
 
-import pandas as pd
 from ..tools.regressor import eliminate_non_dynaffect
 from ..tools.qrdecomposition import (
     get_baseParams,
@@ -53,6 +52,13 @@ from .parameter import (
     ELAS_TPL,
     EE_TPL,
     BASE_TPL,
+)
+
+# Import data loading functions from data_loader module
+from .data_loader import (
+    read_config_data,
+    load_data,
+    get_idxq_from_jname,
 )
 
 # Constants for calibration
@@ -85,130 +91,7 @@ __all__ = [
 ]
 
 
-# DATA PROCESSING TOOLS
-# data collected and saved in various formats and structure, it has
-# always been a pain in the ass to handles. Need to think a way to simplify
-# and optimize this procedure.
-def read_config_data(model, path_to_file):
-    """Read joint configurations from CSV file.
-
-    Args:
-        model (pin.Model): Robot model containing joint information
-        path_to_file (str): Path to CSV file containing joint configurations
-
-    Returns:
-        ndarray: Matrix of shape (n_samples, n_joints-1) containing joint positions
-    """
-    df = pd.read_csv(path_to_file)
-    q = np.zeros([len(df), model.njoints - 1])
-    for i in range(len(df)):
-        for j, name in enumerate(model.names[1:].tolist()):
-            jointidx = get_idxq_from_jname(model, name)
-            q[i, jointidx] = df[name][i]
-    return q
-
-
-def load_data(path_to_file, model, calib_config, del_list=[]):
-    """Load joint configuration and marker data from CSV file.
-
-    Reads marker positions/orientations and joint configurations from a CSV file.
-    Handles data validation, bad sample removal, and conversion to numpy arrays.
-
-    Args:
-        path_to_file (str): Path to CSV file containing recorded data
-        model (pin.Model): Robot model containing joint information
-        calib_config (dict): Parameter dictionary containing:
-            - NbMarkers: Number of markers to load
-            - measurability: List indicating which DOFs are measured
-            - actJoint_idx: List of active joint indices
-            - config_idx: Configuration vector indices
-            - q0: Default configuration vector
-        del_list (list, optional): Indices of bad samples to remove. Defaults to [].
-
-    Returns:
-        tuple:
-            - PEEm_exp (ndarray): Flattened marker measurements of shape (n_active_dofs,)
-            - q_exp (ndarray): Joint configurations of shape (n_samples, n_joints)
-
-    Note:
-        CSV file must contain columns:
-        - For each marker i: [xi, yi, zi, phixi, phiyi, phizi]
-        - Joint names matching model.names for active joints
-
-    Raises:
-        KeyError: If required columns are missing from CSV
-
-    Side Effects:
-        - Prints joint headers
-        - Updates calib_config["NbSample"] with number of valid samples
-    """
-    # read_csv
-    df = pd.read_csv(path_to_file)
-
-    # create headers for marker position
-    PEE_headers = []
-    pee_tpl = ["x", "y", "z", "phix", "phiy", "phiz"]
-    for i in range(calib_config["NbMarkers"]):
-        for j, state in enumerate(calib_config["measurability"]):
-            if state:
-                PEE_headers.extend(["{}{}".format(pee_tpl[j], i + 1)])
-
-    # create headers for joint configurations
-    joint_headers = [model.names[i] for i in calib_config["actJoint_idx"]]
-    
-    # check if all created headers present in csv file
-    csv_headers = list(df.columns)
-    for header in PEE_headers + joint_headers:
-        if header not in csv_headers:
-            print("%s does not exist in the file." % header)
-            break
-
-    # Extract marker position/location
-    pose_ee = df[PEE_headers].to_numpy()
-
-    # Extract joint configurations
-    q_act = df[joint_headers].to_numpy()
-
-    # remove bad data
-    if del_list:
-        pose_ee = np.delete(pose_ee, del_list, axis=0)
-        q_act = np.delete(q_act, del_list, axis=0)
-
-    # update number of data points
-    calib_config["NbSample"] = q_act.shape[0]
-
-    PEEm_exp = pose_ee.T
-    PEEm_exp = PEEm_exp.flatten("C")
-
-    q_exp = np.empty((calib_config["NbSample"], calib_config["q0"].shape[0]))
-    for i in range(calib_config["NbSample"]):
-        config = calib_config["q0"]
-        config[calib_config["config_idx"]] = q_act[i, :]
-        q_exp[i, :] = config
-
-    return PEEm_exp, q_exp
-
-
 # COMMON TOOLS
-
-
-def get_idxq_from_jname(model, joint_name):
-    """Get index of joint in configuration vector.
-
-    Args:
-        model (pin.Model): Robot model
-        joint_name (str): Name of joint to find index for
-
-    Returns:
-        int: Index of joint in configuration vector q
-
-    Raises:
-        AssertionError: If joint name does not exist in model
-    """
-    assert joint_name in model.names, "Given joint name does not exist."
-    jointId = model.getJointId(joint_name)
-    joint_idx = model.joints[jointId].idx_q
-    return joint_idx
 
 
 def cartesian_to_SE3(X):
