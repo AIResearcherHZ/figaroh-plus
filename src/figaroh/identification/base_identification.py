@@ -395,9 +395,9 @@ class BaseIdentification(ABC):
         
         # Create full configuration arrays efficiently
         config_data = [
-            (q_active, self.robot.q0, self.identif_config["act_idxq"]),
-            (dq_active, self.robot.v0, self.identif_config["act_idxv"]),
-            (ddq_active, self.robot.v0, self.identif_config["act_idxv"])
+            (q_active, np.zeros_like(self.robot.q0), self.identif_config["act_idxq"]),
+            (dq_active, np.zeros_like(self.robot.v0), self.identif_config["act_idxv"]),
+            (ddq_active, np.zeros_like(self.robot.v0), self.identif_config["act_idxv"])
         ]
         
         full_configs = []
@@ -531,7 +531,9 @@ class BaseIdentification(ABC):
             self.dynamic_regressor, self.standard_parameter, tol_e=zero_tolerance
         )
         regressor_reduced = build_regressor_reduced(self.dynamic_regressor, idx_eliminated)
-        return regressor_reduced, active_parameters
+        self.regressor_reduced = regressor_reduced
+        self.active_parameters = active_parameters
+        return self.regressor_reduced, self.active_parameters
 
     def _apply_decimation(self, regressor_reduced, decimation_factor):
         """Apply signal decimation to reduce data size.
@@ -572,7 +574,9 @@ class BaseIdentification(ABC):
                 f"regressor_decimated has {regressor_decimated.shape[0]} rows"
             )
 
-        return tau_decimated, regressor_decimated
+        self.tau_decimated = tau_decimated
+        self.regressor_decimated = regressor_decimated
+        return self.tau_decimated, self.regressor_decimated
 
     def _decimate_regressor_matrix(self, regressor_reduced, decimation_factor):
         """Decimate the regressor matrix by joints.
