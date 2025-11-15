@@ -255,67 +255,112 @@ def get_param_from_yaml(robot, calib_data) -> dict:
 
 def unified_to_legacy_config(robot, unified_calib_config) -> dict:
     """Convert unified configuration format to legacy calib_config format.
-    
+
     Maps the new unified configuration structure to the exact format expected
     by get_param_from_yaml. This ensures backward compatibility while using
     the new unified parser.
-    
+
     Args:
         robot (pin.RobotWrapper): Robot instance containing model and data
         unified_calib_config (dict): Configuration from create_task_config
-        
+
     Returns:
         dict: Legacy format calibration configuration matching
               get_param_from_yaml output
-        
+
     Raises:
         KeyError: If required fields are missing from unified config
-        
+        AssertionError: If frame validation fails
+
     Example:
         >>> unified_config = create_task_config(robot, parsed_config,
         ...                                    "calibration")
         >>> legacy_config = unified_to_legacy_config(robot, unified_config)
     """
+    # Initialize output configuration
+    calib_config = {}
+
     # Extract unified config sections
-    # robot properties
     joints = unified_calib_config.get("joints", {})
-    mechanics = unified_calib_config.get("mechanics", {})
-    coupling = unified_calib_config.get("coupling", {})
-    mobility = unified_calib_config.get("mobility", {})
-    sensors = unified_calib_config.get("sensors", {})
-    # task specific
     kinematics = unified_calib_config.get("kinematics", {})
     parameters = unified_calib_config.get("parameters", {})
     measurements = unified_calib_config.get("measurements", {})
     data = unified_calib_config.get("data", {})
 
-    # Extract basic robot information
-    calib_config = dict()
-    robot_name = robot.model.name
-    calib_config["robot_name"] = robot_name
+    # 1. Extract basic robot information
+    calib_config["robot_name"] = robot.model.name
+    calib_config["q0"] = robot.q0
 
-    # Extract markers and measurements information
+    # 2. Extract and validate markers/measurements
+    _extract_marker_info(calib_config, measurements)
+
+    # 3. Extract and validate kinematic frames
+    _extract_frame_info(calib_config, robot, kinematics)
+
+    # 4. Extract tool frame information
+    _extract_tool_info(calib_config, robot, calib_config["end_frame"])
+
+    # 5. Determine active joints
+    _determine_active_joints(
+        calib_config,
+        robot,
+        joints,
+        calib_config["start_frame"],
+        calib_config["end_frame"],
+    )
+
+    # 6. Extract poses
+    _extract_poses(calib_config, measurements)
+
+    # 7. Extract calibration parameters
+    _extract_calibration_params(calib_config, robot, parameters)
+
+    # 8. Extract data configuration
+    calib_config["NbSample"] = data.get("number_of_samples", 500)
+    calib_config["data_file"] = data.get("source_file")
+    calib_config["sample_configs_file"] = data.get(
+        "sample_configurations_file"
+    )
+
+    return calib_config
+
+
+def _extract_marker_info(calib_config, measurements):
+    """Extract marker and measurement information.
+
+    Args:
+        calib_config (dict): Configuration dictionary to update
+        measurements (dict): Measurements section from unified config
+
+    Raises:
+        KeyError: If markers are not defined
+    """
     markers = measurements.get("markers", [{}])
     if not markers:
         raise KeyError("No markers defined in unified configuration")
 
     first_marker = markers[0]
-    NbMarkers = len(markers)
     measurability = first_marker.get(
         "measurable_dof", [True, True, True, False, False, False]
     )
-    calib_idx = measurability.count(True)
 
-    calib_config["NbMarkers"] = NbMarkers
+    calib_config["NbMarkers"] = len(markers)
     calib_config["measurability"] = measurability
-    calib_config["calibration_index"] = calib_idx
+    calib_config["calibration_index"] = measurability.count(True)
 
-    # Extract calibration model
-    calib_config["calib_model"] = parameters.get(
-        "calibration_level", "full_params"
-    )
 
-    # Extract kinematic frames
+def _extract_frame_info(calib_config, robot, kinematics):
+    """Extract and validate kinematic frame information.
+
+    Args:
+        calib_config (dict): Configuration dictionary to update
+        robot: Robot instance
+        kinematics (dict): Kinematics section from unified config
+
+    Raises:
+        KeyError: If tool_frame not specified
+        AssertionError: If frames don't exist in robot model
+    """
     frames = [f.name for f in robot.model.frames]
     start_frame = kinematics.get("base_frame", "universe")
     end_frame = kinematics.get("tool_frame")
@@ -324,35 +369,42 @@ def unified_to_legacy_config(robot, unified_calib_config) -> dict:
         raise KeyError("tool_frame not specified in unified configuration")
 
     # Validate frames exist
-    err_msg = "{}_frame {} does not exist"
     if start_frame not in frames:
-        raise AssertionError(err_msg.format("Start", start_frame))
+        raise AssertionError(f"Start_frame {start_frame} does not exist")
     if end_frame not in frames:
-        raise AssertionError(err_msg.format("End", end_frame))
+        raise AssertionError(f"End_frame {end_frame} does not exist")
 
     calib_config["start_frame"] = start_frame
     calib_config["end_frame"] = end_frame
 
-    # Extract poses
-    poses = measurements.get("poses", {})
-    calib_config["base_pose"] = poses.get("base_pose")
-    calib_config["tip_pose"] = poses.get("tool_pose")
-    if not calib_config["base_pose"] and not calib_config["tip_pose"]:
-        print("base_pose and tip_pose are not defined.")
 
-    # Robot configuration
-    calib_config["q0"] = robot.q0
+def _extract_tool_info(calib_config, robot, end_frame):
+    """Extract tool frame information.
 
-    # Extract data information
-    calib_config["NbSample"] = data.get("number_of_samples", 500)
-
-    # Tool frame information
+    Args:
+        calib_config (dict): Configuration dictionary to update
+        robot: Robot instance
+        end_frame (str): End effector frame name
+    """
     IDX_TOOL = robot.model.getFrameId(end_frame)
-    calib_config["IDX_TOOL"] = IDX_TOOL
     tool_joint = robot.model.frames[IDX_TOOL].parentJoint
+
+    calib_config["IDX_TOOL"] = IDX_TOOL
     calib_config["tool_joint"] = tool_joint
 
-    # Active joints - extract from joints.active_joints if available
+
+def _determine_active_joints(
+    calib_config, robot, joints, start_frame, end_frame
+):
+    """Determine active joints from configuration or kinematic chain.
+
+    Args:
+        calib_config (dict): Configuration dictionary to update
+        robot: Robot instance
+        joints (dict): Joints section from unified config
+        start_frame (str): Starting frame name
+        end_frame (str): Ending frame name
+    """
     active_joint_names = joints.get("active_joints", [])
 
     if active_joint_names:
@@ -362,65 +414,121 @@ def unified_to_legacy_config(robot, unified_calib_config) -> dict:
             if joint_name in robot.model.names:
                 joint_id = robot.model.getJointId(joint_name)
                 actJoint_idx.append(joint_id)
-        calib_config["actJoint_idx"] = actJoint_idx
     else:
-        # Fall back to computing from frames if no active joints specified
+        # Compute from kinematic chain
         actJoint_idx = get_sup_joints(robot.model, start_frame, end_frame)
-        calib_config["actJoint_idx"] = actJoint_idx
 
-    # Configuration indices
-    config_idx = [robot.model.joints[i].idx_q for i in
-                  calib_config["actJoint_idx"]]
-    calib_config["config_idx"] = config_idx
+    # Store joint information
+    calib_config["actJoint_idx"] = actJoint_idx
+    calib_config["config_idx"] = [
+        robot.model.joints[i].idx_q for i in actJoint_idx
+    ]
+    calib_config["NbJoint"] = len(actJoint_idx)
 
-    # Number of active joints
-    NbJoint = len(calib_config["actJoint_idx"])
-    calib_config["NbJoint"] = NbJoint
 
-    # Parameter names (initialize empty, will be filled by create_param_list)
-    param_name = []
+def _extract_poses(calib_config, measurements):
+    """Extract base and tip pose information.
 
-    # Handle non-geometric parameters
+    Args:
+        calib_config (dict): Configuration dictionary to update
+        measurements (dict): Measurements section from unified config
+    """
+    poses = measurements.get("poses", {})
+    base_pose = poses.get("base_pose")
+    tip_pose = poses.get("tool_pose")
+
+    calib_config["base_pose"] = base_pose
+    calib_config["tip_pose"] = tip_pose
+
+    if not base_pose and not tip_pose:
+        print("Warning: base_pose and tip_pose are not defined.")
+
+
+def _extract_calibration_params(calib_config, robot, parameters):
+    """Extract calibration parameters including non-geometric terms.
+
+    Args:
+        calib_config (dict): Configuration dictionary to update
+        robot: Robot instance
+        parameters (dict): Parameters section from unified config
+    """
+    # Extract calibration model and settings
+    calib_config["calib_model"] = parameters.get(
+        "calibration_level", "full_params"
+    )
     non_geom = parameters.get("include_non_geometric", False)
+
+    # Build parameter names for non-geometric parameters
+    param_name = []
     if non_geom:
-        # Create elastic gain parameter names
-        elastic_gain = []
-        joint_axes = ["PX", "PY", "PZ", "RX", "RY", "RZ"]
-        for j_id, joint_name in enumerate(robot.model.names.tolist()):
-            if joint_name == "universe":
-                axis_motion = "null"
-            else:
-                shortname = robot.model.joints[j_id].shortname()
-                for ja in joint_axes:
-                    if ja in shortname:
-                        axis_motion = ja
-                    elif "RevoluteUnaligned" in shortname:
-                        axis_motion = "RZ"  # hard coded fix for canopies
-            elastic_gain.append("k_" + axis_motion + "_" + joint_name)
-        for i in calib_config["actJoint_idx"]:
-            param_name.append(elastic_gain[i])
+        param_name = _build_elastic_param_names(
+            robot, calib_config["actJoint_idx"]
+        )
 
     calib_config["param_name"] = param_name
 
-    # Basic calibration settings
-    calib_config.update({
-        "free_flyer": parameters.get("free_flyer", False),
-        "non_geom": non_geom,
-        "eps": 1e-3,
-        "PLOT": 0,
-    })
-
-    # Optional parameters with defaults
-    calib_config["coeff_regularize"] = parameters.get(
-        "regularization_coefficient", 0.01
+    # Store calibration settings
+    calib_config.update(
+        {
+            "free_flyer": parameters.get("free_flyer", False),
+            "non_geom": non_geom,
+            "eps": 1e-3,
+            "PLOT": 0,
+            "coeff_regularize": parameters.get(
+                "regularization_coefficient", 0.01
+            ),
+            "outlier_eps": parameters.get("outlier_threshold", 0.05),
+        }
     )
-    calib_config["data_file"] = data.get("source_file")
-    calib_config["sample_configs_file"] = data.get(
-        "sample_configurations_file"
-    )
-    calib_config["outlier_eps"] = parameters.get("outlier_threshold", 0.05)
 
-    return calib_config
+
+def _build_elastic_param_names(robot, actJoint_idx):
+    """Build elastic gain parameter names for active joints.
+
+    Args:
+        robot: Robot instance
+        actJoint_idx (list): List of active joint indices
+
+    Returns:
+        list: List of elastic parameter names
+    """
+    elastic_gain = []
+    joint_axes = ["PX", "PY", "PZ", "RX", "RY", "RZ"]
+
+    # Build elastic gain names for all joints
+    for j_id, joint_name in enumerate(robot.model.names.tolist()):
+        if joint_name == "universe":
+            axis_motion = "null"
+        else:
+            shortname = robot.model.joints[j_id].shortname()
+            axis_motion = _determine_axis_motion(shortname, joint_axes)
+
+        elastic_gain.append(f"k_{axis_motion}_{joint_name}")
+
+    # Select only active joints
+    return [elastic_gain[i] for i in actJoint_idx]
+
+
+def _determine_axis_motion(shortname, joint_axes):
+    """Determine axis of motion from joint short name.
+
+    Args:
+        shortname (str): Joint short name from Pinocchio
+        joint_axes (list): List of possible joint axes
+
+    Returns:
+        str: Axis of motion identifier
+    """
+    # Check for standard joint axes
+    for ja in joint_axes:
+        if ja in shortname:
+            return ja
+
+    # Handle special cases
+    if "RevoluteUnaligned" in shortname:
+        return "RZ"  # Hard-coded fix for canopies and similar robots
+
+    return "RZ"  # Default fallback
 
 
 def get_joint_offset(model, joint_names):
