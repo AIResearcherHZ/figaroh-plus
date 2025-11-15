@@ -15,7 +15,7 @@ class RegressorConfig:
     is_joint_torques: bool = True
     is_external_wrench: bool = False
     force_torque: Optional[List[str]] = None
-    additional_columns: int = 4
+    additional_columns: int = 0
 
 
 class RegressorBuilder:
@@ -163,13 +163,21 @@ class RegressorBuilder:
 # Backward compatibility functions
 def build_regressor_basic(robot, q, v, a, identif_config, tau=None):
     """Legacy function for backward compatibility."""
+    # Calculate additional columns based on enabled options
+    additional_columns = sum([
+        2 if identif_config.get("has_friction", False) else 0,  # fv and fs
+        1 if identif_config.get("has_actuator_inertia", False) else 0,  # ia
+        1 if identif_config.get("has_joint_offset", False) else 0,  # offset
+    ])
+    
     config = RegressorConfig(
         has_friction=identif_config.get("has_friction", False),
         has_actuator_inertia=identif_config.get("has_actuator_inertia", False),
         has_joint_offset=identif_config.get("has_joint_offset", False),
         is_joint_torques=identif_config.get("is_joint_torques", True),
         is_external_wrench=identif_config.get("is_external_wrench", False),
-        force_torque=identif_config.get("force_torque", None)
+        force_torque=identif_config.get("force_torque", None),
+        additional_columns=additional_columns
     )
     
     builder = RegressorBuilder(robot, config)
