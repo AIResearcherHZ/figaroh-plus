@@ -85,37 +85,37 @@ def add_standard_additional_parameters(phi, params, identif_config, model):
     # Standard additional parameters configuration
     additional_params = [
         {
-            'name': 'Ia',
-            'enabled_key': 'has_actuator_inertia',
-            'values_key': 'Ia',
-            'default': 0.0,
-            'description': 'actuator inertia'
+            "name": "fv",
+            "enabled_key": "has_friction",
+            "values_key": "fv",
+            "default": 0.0,
+            "description": "viscous friction",
         },
         {
-            'name': 'fv',
-            'enabled_key': 'has_friction',
-            'values_key': 'fv',
-            'default': 0.0,
-            'description': 'viscous friction'
+            "name": "fs",
+            "enabled_key": "has_friction",
+            "values_key": "fs",
+            "default": 0.0,
+            "description": "static friction",
         },
         {
-            'name': 'fs',
-            'enabled_key': 'has_friction',
-            'values_key': 'fs',
-            'default': 0.0,
-            'description': 'static friction'
+            "name": "Ia",
+            "enabled_key": "has_actuator_inertia",
+            "values_key": "Ia",
+            "default": 0.0,
+            "description": "actuator inertia",
         },
         {
-            'name': 'off',
-            'enabled_key': 'has_joint_offset',
-            'values_key': 'off',
-            'default': 0.0,
-            'description': 'joint offset'
-        }
+            "name": "off",
+            "enabled_key": "has_joint_offset",
+            "values_key": "off",
+            "default": 0.0,
+            "description": "joint offset",
+        },
     ]
 
-    for link_idx, jname in enumerate(model.names[1:]):  # Skip world link
-        for param_def in additional_params:
+    for param_def in additional_params:
+        for link_idx, jname in enumerate(model.names[1:]):  # Skip world link
             param_name = f"{param_def['name']}_{jname}"
             params.append(param_name)
 
@@ -276,9 +276,21 @@ def get_standard_parameters(
     params = []
 
     # Standard inertial parameter names in desired order
+    # inertial_params = [
+    #     "Ixx", "Ixy", "Ixz", "Iyy", "Iyz", "Izz",
+    #     "mx", "my", "mz", "m"
+    # ]
     inertial_params = [
-        "Ixx", "Ixy", "Ixz", "Iyy", "Iyz", "Izz",
-        "mx", "my", "mz", "m"
+        "m",
+        "mx",
+        "my",
+        "mz",
+        "Ixx",
+        "Ixy",
+        "Iyy",
+        "Ixz",
+        "Iyz",
+        "Izz",
     ]
 
     # Extract and rearrange inertial parameters for each link
@@ -299,8 +311,8 @@ def get_standard_parameters(
         # Rearrange from Pinocchio order [m, mx, my, mz, Ixx, Ixy, Iyy, Ixz,
         # Iyz, Izz] to desired order [Ixx, Ixy, Ixz, Iyy, Iyz, Izz, mx, my,
         # mz, m]
-        reordered_params = reorder_inertial_parameters(pinocchio_params)
-
+        # reordered_params = reorder_inertial_parameters(pinocchio_params)
+        reordered_params = pinocchio_params
         # Add parameter names and values
         for param_name in inertial_params:
             params.append(f"{param_name}_{jname}")
@@ -326,41 +338,51 @@ def get_parameter_info():
         dict: Information about standard and custom parameter types
     """
     return {
-        'inertial_parameters': [
-            "Ixx", "Ixy", "Ixz", "Iyy", "Iyz", "Izz",
-            "mx", "my", "mz", "m"
+        "inertial_parameters": [
+            # "Ixx", "Ixy", "Ixz", "Iyy", "Iyz", "Izz",
+            # "mx", "my", "mz", "m"
+            "m",
+            "mx",
+            "my",
+            "mz",
+            "Ixx",
+            "Ixy",
+            "Iyy",
+            "Ixz",
+            "Iyz",
+            "Izz",
         ],
-        'standard_additional': {
-            'actuator_inertia': {
-                'name': 'Ia',
-                'enabled_key': 'has_actuator_inertia',
-                'values_key': 'Ia',
-                'description': 'Actuator/rotor inertia'
+        "standard_additional": {
+            "viscous_friction": {
+                "name": "fv",
+                "enabled_key": "has_friction",
+                "values_key": "fv",
+                "description": "Viscous friction coefficient",
             },
-            'viscous_friction': {
-                'name': 'fv',
-                'enabled_key': 'has_friction',
-                'values_key': 'fv',
-                'description': 'Viscous friction coefficient'
+            "static_friction": {
+                "name": "fs",
+                "enabled_key": "has_friction",
+                "values_key": "fs",
+                "description": "Static friction coefficient",
             },
-            'static_friction': {
-                'name': 'fs',
-                'enabled_key': 'has_friction',
-                'values_key': 'fs',
-                'description': 'Static friction coefficient'
+            "actuator_inertia": {
+                "name": "Ia",
+                "enabled_key": "has_actuator_inertia",
+                "values_key": "Ia",
+                "description": "Actuator/rotor inertia",
             },
-            'joint_offset': {
-                'name': 'off',
-                'enabled_key': 'has_joint_offset',
-                'values_key': 'off',
-                'description': 'Joint position offset'
+            "joint_offset": {
+                "name": "off",
+                "enabled_key": "has_joint_offset",
+                "values_key": "off",
+                "description": "Joint position offset",
+            },
+        },
+        "custom_parameters_format": {
+            "parameter_name": {
+                "values": "list of values",
+                "per_joint": "boolean - if True, creates param for each joint",
+                "default": "default value if not enough values provided",
             }
         },
-        'custom_parameters_format': {
-            'parameter_name': {
-                'values': 'list of values',
-                'per_joint': 'boolean - if True, creates param for each joint',
-                'default': 'default value if not enough values provided'
-            }
-        }
     }
