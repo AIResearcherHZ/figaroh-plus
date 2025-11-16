@@ -27,9 +27,7 @@ class RegressorBuilder:
         self.nv = robot.model.nv
         self.nonzero_inertias = self._get_nonzero_inertias()
 
-    def build_basic_regressor(
-        self, q: np.ndarray, v: np.ndarray, a: np.ndarray, tau: Optional[np.ndarray] = None,
-        identif_config=None) -> np.ndarray:
+    def build_basic_regressor(self, q: np.ndarray, v: np.ndarray, a: np.ndarray, identif_config=None) -> np.ndarray:
         """Build basic regressor matrix."""
         # Normalize inputs
         Q, V, A, N = self._normalize_inputs(q, v, a)
@@ -183,7 +181,7 @@ def build_regressor_basic(robot, q, v, a, identif_config, tau=None):
     )
     
     builder = RegressorBuilder(robot, config)
-    return builder.build_basic_regressor(q, v, a, tau, identif_config)
+    return builder.build_basic_regressor(q, v, a, identif_config)
 
 
 # Keep other functions with minor improvements...
