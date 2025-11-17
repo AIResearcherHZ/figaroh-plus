@@ -39,6 +39,7 @@ from figaroh.tools.regressor import (
     build_regressor_reduced,
 )
 from figaroh.identification.identification_tools import get_standard_parameters
+from figaroh.tools.solver import LinearSolver
 
 
 class BaseIdentification(ABC):
@@ -48,7 +49,7 @@ class BaseIdentification(ABC):
     Provides common functionality for all robots while allowing
     robot-specific implementations of key methods.
     """
-    
+
     def __init__(self, robot, config_file="config/robot_config.yaml"):
         """Initialize base identification with robot model and configuration.
         
@@ -62,7 +63,7 @@ class BaseIdentification(ABC):
 
         # Load configuration using the TIAGo-style approach
         self.load_param(config_file)
-        
+
         # Initialize attributes for identification results
         self.dynamic_regressor = None
         self.standard_parameter = None
@@ -111,14 +112,14 @@ class BaseIdentification(ABC):
             np.linalg.LinAlgError: If QR decomposition fails
         """
         print(f"Starting {self.__class__.__name__} dynamic parameter identification...")
-        
+
         # Validate prerequisites
         self._validate_prerequisites()
-        
+
         # Step 1: Eliminate zero columns
         regressor_reduced, active_params = self._eliminate_zero_columns(
             zero_tolerance)
-        
+
         # Step 2: Apply decimation if requested
         if decimate:
             tau_processed, W_processed = self._apply_decimation(
@@ -126,25 +127,157 @@ class BaseIdentification(ABC):
         else:
             tau_processed, W_processed = self._prepare_undecimated_data(
                 regressor_reduced)
-        
+
         # Step 3: Calculate base parameters
         results = self._calculate_base_parameters(
             tau_processed, W_processed, active_params)
-        
+
         # Step 4: Store results and compute quality metrics
         self._compute_quality_metrics()
         self._store_results(results)
-        
+
         # Step 5: Optional plotting
         if plotting:
             self.plot_results()
-        
+
         # Step 6: Optional parameter saving
         if save_results:
             self.save_results()
-        
+
         return self.phi_base
-    
+
+    def solve_with_custom_solver(
+        self, method='lstsq', regularization=None, alpha=0.0,
+        constraints=None, bounds=None, decimate=False,
+        decimation_factor=10, zero_tolerance=0.001,
+        plotting=False, save_results=False, **solver_kwargs
+    ):
+        """
+        Alternative solving method using advanced linear solver.
+
+        This method provides more flexibility than the default QR-based
+        solve(), offering multiple solving methods, regularization, and
+        constraints.
+
+        Args:
+            method (str): Solving method ('lstsq', 'ridge', 'lasso',
+                'constrained', etc.)
+            regularization (str): Regularization type ('l1', 'l2',
+                'elastic_net')
+            alpha (float): Regularization strength
+            constraints (dict): Linear constraints
+            bounds (tuple): Box constraints on parameters
+            decimate (bool): Whether to apply decimation
+            decimation_factor (int): Decimation factor if decimate=True
+            zero_tolerance (float): Tolerance for eliminating zero columns
+            plotting (bool): Whether to generate plots
+            save_results (bool): Whether to save parameters to file
+            **solver_kwargs: Additional arguments for LinearSolver
+
+        Returns:
+            ndarray: Identified base parameters
+
+        Example:
+            >>> # Ridge regression with L2 regularization
+            >>> phi = identification.solve_with_custom_solver(
+            ...     method='ridge', alpha=0.01)
+
+            >>> # Constrained optimization with physical bounds
+            >>> bounds = [(0, 100) for _ in range(n_params)]
+            >>> phi = identification.solve_with_custom_solver(
+            ...     method='constrained', bounds=bounds)
+        """
+        print(f"Starting {self.__class__.__name__} identification "
+              f"with custom solver...")
+
+        # Validate prerequisites
+        self._validate_prerequisites()
+
+        # Step 1: Eliminate zero columns
+        regressor_reduced, active_params = self._eliminate_zero_columns(
+            zero_tolerance
+        )
+
+        # Step 2: Apply decimation if requested
+        if decimate:
+            tau_processed, W_processed = self._apply_decimation(
+                regressor_reduced, decimation_factor
+            )
+        else:
+            tau_processed, W_processed = self._prepare_undecimated_data(
+                regressor_reduced
+            )
+
+        # Step 3: Solve using custom solver
+        solver = LinearSolver(
+            method=method,
+            regularization=regularization,
+            alpha=alpha,
+            constraints=constraints,
+            bounds=bounds,
+            verbose=True,
+            **solver_kwargs
+        )
+
+        # # Solve for reduced parameters
+        # phi_reduced = solver.solve(W_processed, tau_processed)
+
+        # # Map back to full parameter space
+        # phi_full = np.zeros(len(self.standard_parameter))
+        # active_indices = [
+        #     i for i, active in enumerate(active_params.values()) if active
+        # ]
+        # phi_full[active_indices] = phi_reduced
+
+        # Step 4: Compute base parameters using QR decomposition
+        from figaroh.tools.qrdecomposition import double_QR
+
+        W_base, _, base_parameters, _, phi_std = \
+            double_QR(
+                tau_processed, W_processed, active_params,
+                self.standard_parameter
+            )
+        phi_base = solver.solve(W_base, tau_processed)
+        base_param_dict = {param: phi_base[i] for i, param in enumerate(base_parameters)}
+        
+        # Store results
+        self.dynamic_regressor_base = W_base
+        self.phi_base = phi_base
+        self.params_base = list(base_param_dict.keys())
+        self.tau_identif = W_base @ phi_base
+        self.tau_noised = tau_processed
+
+        # Step 5: Compute quality metrics and store
+        self._compute_quality_metrics()
+
+        results = {
+            "base_regressor": W_base,
+            "base_param_dict": base_param_dict,
+            "base_parameters": base_parameters,
+            "phi_base": phi_base,
+            "tau_estimated": self.tau_identif,
+            "tau_processed": tau_processed,
+            "solver_info": solver.solver_info,
+            "solver_method": method,
+            "regularization": regularization,
+            "alpha": alpha
+        }
+
+        self._store_results(results)
+
+        # Step 6: Optional plotting
+        if plotting:
+            self.plot_results()
+
+        # Step 7: Optional parameter saving
+        if save_results:
+            self.save_results()
+
+        print(f"  RMSE: {self.rms_error:.6f}")
+        print(f"  Correlation: {self.correlation:.6f}")
+
+        return self.phi_base
+
     def load_param(self, config_file, setting_type="identification"):
         """Load the identification parameters from the yaml file.
         
@@ -158,7 +291,7 @@ class BaseIdentification(ABC):
         """
         try:
             print(f"Loading config from {config_file}")
-            
+
             # Check if this is a unified configuration format
             if is_unified_config(config_file):
                 print("Detected unified configuration format")
@@ -203,7 +336,7 @@ class BaseIdentification(ABC):
 
         # load raw data
         self.raw_data = self.load_trajectory_data()
-        
+
         # Truncate data if truncation indices are provided
         self.raw_data = self._truncate_data(self.raw_data, truncate)
 
@@ -218,7 +351,7 @@ class BaseIdentification(ABC):
 
         # Build full configuration
         self._build_full_configuration()
-    
+
     def calculate_full_regressor(self):
         """Build regressor matrix, compute pre-identified values of standard 
         parameters, compute joint torques based on pre-identified standard 
@@ -268,36 +401,36 @@ class BaseIdentification(ABC):
             tuple: Filtered signals in the same order as input
         """
         from scipy import signal
-        
+
         # Design Butterworth filter coefficients
         b1, b2 = signal.butter(nbutter, f_butter / (f_sample / 2), "low")
-        
+
         filtered_signals = []
-        
+
         for sig in signals:
             if sig is None:
                 filtered_signals.append(None)
                 continue
-                
+
             # Ensure signal is 2D array
             if sig.ndim == 1:
                 sig = sig.reshape(-1, 1)
-                
+
             sig_filtered = np.zeros(sig.shape)
-            
+
             # Apply filters to each column (joint/channel)
             for j in range(sig.shape[1]):
                 # Apply median filter first
                 sig_med = signal.medfilt(sig[:, j], med_fil)
-                
+
                 # Apply Butterworth lowpass filter
                 sig_filtered[:, j] = signal.filtfilt(
                     b1, b2, sig_med, padtype="odd", 
                     padlen=3 * (max(len(b1), len(b2)) - 1)
                 )
-            
+
             filtered_signals.append(sig_filtered)
-        
+
         # Return single array if only one signal, otherwise tuple
         if len(filtered_signals) == 1:
             return filtered_signals[0]
@@ -322,54 +455,54 @@ class BaseIdentification(ABC):
         if signal.shape[0] != time_vector.shape[0]:
             raise ValueError(f"Time vector length {time_vector.shape[0]} "
                            f"doesn't match signal length {signal.shape[0]}")
-        
+
         # Ensure signal is 2D
         if signal.ndim == 1:
             signal = signal.reshape(-1, 1)
             squeeze_output = True
         else:
             squeeze_output = False
-        
+
         # Handle time vector shape (extract first column if 2D)
         if time_vector.ndim == 2:
             t = time_vector[:, 0]
         else:
             t = time_vector
-        
+
         # Initialize output array
         derivative = np.zeros_like(signal)
-        
+
         # Apply differentiation method to each column
         for j in range(signal.shape[1]):
             sig_col = signal[:, j]
-            
+
             if method == 'gradient':
                 # Use numpy gradient (handles edge cases automatically)
                 derivative[:, j] = np.gradient(sig_col, t)
-                
+
             elif method == 'forward':
                 # Forward difference: df/dt ≈ (f[i+1] - f[i]) / (t[i+1] - t[i])
                 derivative[:-1, j] = np.diff(sig_col) / np.diff(t)
                 # Extrapolate last point
                 derivative[-1, j] = derivative[-2, j]
-                
+
             elif method == 'backward':
                 # Backward difference: df/dt ≈ (f[i] - f[i-1]) / (t[i] - t[i-1])
                 derivative[1:, j] = np.diff(sig_col) / np.diff(t)
                 # Extrapolate first point
                 derivative[0, j] = derivative[1, j]
-                
+
             elif method == 'central':
                 # Central difference: df/dt ≈ (f[i+1] - f[i-1]) / (t[i+1] - t[i-1])
                 derivative[1:-1, j] = (sig_col[2:] - sig_col[:-2]) / (t[2:] - t[:-2])
                 # Handle boundary conditions
                 derivative[0, j] = (sig_col[1] - sig_col[0]) / (t[1] - t[0])
                 derivative[-1, j] = (sig_col[-1] - sig_col[-2]) / (t[-1] - t[-2])
-                
+
             else:
                 raise ValueError(f"Unsupported differentiation method: {method}. "
                                f"Use 'gradient', 'forward', 'backward', or 'central'")
-        
+
         # Return with original dimensionality
         if squeeze_output:
             return derivative.squeeze()
@@ -387,19 +520,19 @@ class BaseIdentification(ABC):
         for key in required_keys:
             if key not in self.processed_data or self.processed_data[key] is None:
                 raise ValueError(f"Missing required data: {key}")
-        
+
         # Get active joint data
         q_active = self.processed_data["positions"]
         dq_active = self.processed_data["velocities"]
         ddq_active = self.processed_data["accelerations"]
-        
+
         # Create full configuration arrays efficiently
         config_data = [
-            (q_active, self.robot.q0, self.identif_config["act_idxq"]),
-            (dq_active, self.robot.v0, self.identif_config["act_idxv"]),
-            (ddq_active, self.robot.v0, self.identif_config["act_idxv"])
+            (q_active, np.zeros_like(self.robot.q0), self.identif_config["act_idxq"]),
+            (dq_active, np.zeros_like(self.robot.v0), self.identif_config["act_idxv"]),
+            (ddq_active, np.zeros_like(self.robot.v0), self.identif_config["act_idxv"])
         ]
-        
+
         full_configs = []
         for active_data, default_config, active_indices in config_data:
             # Initialize with defaults
@@ -407,7 +540,7 @@ class BaseIdentification(ABC):
             # Fill active joints
             full_config[:, active_indices] = active_data
             full_configs.append(full_config)
-        
+
         # Update processed data efficiently
         config_keys = ["positions", "velocities", "accelerations"]
         self.processed_data.update(dict(zip(config_keys, full_configs)))
@@ -424,21 +557,21 @@ class BaseIdentification(ABC):
         """
         if truncate is None:
             return data_dict.copy()
-            
+
         if not isinstance(truncate, (list, tuple)) or len(truncate) != 2:
             raise ValueError("Truncate parameter must be a tuple/list of length 2 (start, end)")
-            
+
         n_i, n_f = truncate
         truncated_data = {}
-        
+
         for key, array in data_dict.items():
             if array is not None:
                 truncated_data[key] = array[n_i:n_f]
             else:
                 truncated_data[key] = None
-                
+
         return truncated_data
-    
+
     def process_kinematics_data(self, filter_config=None):
         """Process kinematics data (positions, velocities, accelerations) with filtering."""
         self.filter_kinematics_data(filter_config)
@@ -459,20 +592,20 @@ class BaseIdentification(ABC):
             raise ValueError("Timestamps are required for data processing")
         if self.raw_data.get("positions") is None:
             raise ValueError("Position data is required for processing")
-            
+
         # Create processed data copy to avoid modifying raw data
         self.processed_data = {}
-        
+
         # Process timestamps (no filtering needed)
         self.processed_data["timestamps"] = self.raw_data["timestamps"]
-        
+
         # Define signal processing pipeline
         signal_pipeline = [
             ("positions", self.raw_data["positions"], None),
             ("velocities", self.raw_data.get("velocities"), "positions"),
             ("accelerations", self.raw_data.get("accelerations"), "velocities")
         ]
-        
+
         # Process signals through pipeline
         for signal_name, signal_data, dependency in signal_pipeline:
             if signal_data is not None:
@@ -531,7 +664,9 @@ class BaseIdentification(ABC):
             self.dynamic_regressor, self.standard_parameter, tol_e=zero_tolerance
         )
         regressor_reduced = build_regressor_reduced(self.dynamic_regressor, idx_eliminated)
-        return regressor_reduced, active_parameters
+        self.regressor_reduced = regressor_reduced
+        self.active_parameters = active_parameters
+        return self.regressor_reduced, self.active_parameters
 
     def _apply_decimation(self, regressor_reduced, decimation_factor):
         """Apply signal decimation to reduce data size.
@@ -544,11 +679,11 @@ class BaseIdentification(ABC):
             tuple: (tau_decimated, regressor_decimated)
         """
         from scipy import signal
-        
+
         # Decimate torque data
         tau_decimated_list = []
         num_joints = len(self.identif_config["act_idxv"])
-        
+
         for i in range(num_joints):
             tau_joint = self.processed_data["torques"][:, i]
             tau_dec = signal.decimate(tau_joint, q=decimation_factor,
@@ -563,7 +698,7 @@ class BaseIdentification(ABC):
         # Decimate regressor matrix
         regressor_decimated = self._decimate_regressor_matrix(
             regressor_reduced, decimation_factor)
-        
+
         # Validate that decimated data is properly aligned
         if tau_decimated.shape[0] != regressor_decimated.shape[0]:
             raise ValueError(
@@ -572,7 +707,9 @@ class BaseIdentification(ABC):
                 f"regressor_decimated has {regressor_decimated.shape[0]} rows"
             )
 
-        return tau_decimated, regressor_decimated
+        self.tau_decimated = tau_decimated
+        self.regressor_decimated = regressor_decimated
+        return self.tau_decimated, self.regressor_decimated
 
     def _decimate_regressor_matrix(self, regressor_reduced, decimation_factor):
         """Decimate the regressor matrix by joints.
@@ -585,15 +722,15 @@ class BaseIdentification(ABC):
             ndarray: Decimated regressor matrix
         """
         from scipy import signal
-        
+
         num_joints = len(self.identif_config["act_idxv"])
         regressor_list = []
-        
+
         for i in range(num_joints):
             # Extract rows corresponding to joint i
             start_idx = self.identif_config["act_idxv"][i] * self.num_samples
             end_idx = (self.identif_config["act_idxv"][i] + 1) * self.num_samples
-            
+
             joint_regressor_decimated = []
             for j in range(regressor_reduced.shape[1]):
                 column_data = regressor_reduced[start_idx:end_idx, j]
@@ -612,13 +749,13 @@ class BaseIdentification(ABC):
         total_rows = sum(matrix.shape[0] for matrix in regressor_list)
         regressor_decimated = np.zeros((total_rows,
                                         regressor_list[0].shape[1]))
-        
+
         current_row = 0
         for matrix in regressor_list:
             next_row = current_row + matrix.shape[0]
             regressor_decimated[current_row:next_row, :] = matrix
             current_row = next_row
-            
+
         return regressor_decimated
 
     def _prepare_undecimated_data(self, regressor_reduced):
@@ -650,15 +787,15 @@ class BaseIdentification(ABC):
             dict: Results from QR decomposition
         """
         from figaroh.tools.qrdecomposition import double_QR
-        
+
         # Perform QR decomposition
         W_base, base_param_dict, base_parameters, phi_base, phi_std = \
             double_QR(tau_processed, regressor_processed, active_parameters,
                       self.standard_parameter)
-        
+
         # Calculate torque estimation (avoid redundant computation)
         tau_estimated = np.dot(W_base, phi_base)
-        
+
         # Store key results for backward compatibility
         self.dynamic_regressor_base = W_base
         self.phi_base = phi_base
@@ -688,7 +825,7 @@ class BaseIdentification(ABC):
         self.std_relative = relative_stdev(self.dynamic_regressor_base, self.phi_base, self.tau_noised)
         residuals = self.tau_noised - self.tau_identif
         self.rms_error = np.sqrt(np.mean(residuals**2))
-        
+
         if len(self.tau_noised) > 1 and len(self.tau_identif) > 1:
             try:
                 correlation_matrix = np.corrcoef(self.tau_noised,
@@ -724,8 +861,8 @@ class BaseIdentification(ABC):
 
         # Initialize ResultsManager for identification task
         try:
-            from .results_manager import ResultsManager
-            
+            from figaroh.utils.results_manager import ResultsManager
+
             # Get robot name from class or model
             robot_name = getattr(
                 self, 'robot_name',
@@ -733,20 +870,20 @@ class BaseIdentification(ABC):
                     self.model, 'name',
                     self.__class__.__name__.lower().replace(
                         'identification', '')))
-            
+
             # Initialize results manager for identification task
             self.results_manager = ResultsManager('identification', robot_name, self.result)
-            
+
         except ImportError as e:
             print(f"Warning: ResultsManager not available: {e}")
             self.results_manager = None
-    
+
     def plot_results(self):
         """Plot identification results using unified results manager."""
         if not hasattr(self, 'result') or self.result is None:
             print("No identification results to plot. Run solve() first.")
             return
-        
+
         # Use pre-initialized results manager if available
         if hasattr(self, 'results_manager') and \
            self.results_manager is not None:
@@ -754,27 +891,27 @@ class BaseIdentification(ABC):
                 # Plot using unified manager with self.result data
                 self.results_manager.plot_identification_results()
                 return
-                
+
             except Exception as e:
                 print(f"Error plotting with ResultsManager: {e}")
                 print("Falling back to basic plotting...")
-        
+
         # Fallback to basic plotting if ResultsManager not available
         try:
             import matplotlib.pyplot as plt
-            
+
             # Extract data from self.result dictionary
             tau_measured = self.result.get("torque processed", np.array([]))
             tau_identified = self.result.get("torque estimated", np.array([]))
             parameter_values = self.result.get("base parameters values",
                                                np.array([]))
-            
+
             if len(tau_measured) == 0 or len(tau_identified) == 0:
                 print("No torque data available for plotting")
                 return
-            
+
             plt.figure(figsize=(12, 8))
-            
+
             plt.subplot(2, 1, 1)
             plt.plot(tau_measured, label="Measured (with noise)", alpha=0.7)
             plt.plot(tau_identified, label="Identified", alpha=0.7)
@@ -783,7 +920,7 @@ class BaseIdentification(ABC):
             plt.title(f'{self.__class__.__name__} Torque Comparison')
             plt.legend()
             plt.grid(True, alpha=0.3)
-            
+
             plt.subplot(2, 1, 2)
             if len(parameter_values) > 0:
                 plt.bar(range(len(parameter_values)), parameter_values,
@@ -793,21 +930,21 @@ class BaseIdentification(ABC):
                 plt.title('Identified Base Parameters')
                 plt.legend()
                 plt.grid(True, alpha=0.3)
-            
+
             plt.tight_layout()
             plt.show()
-            
+
         except ImportError:
             print("Warning: matplotlib not available for plotting")
         except Exception as e:
             print(f"Warning: Plotting failed: {e}")
-    
+
     def save_results(self, output_dir="results"):
         """Save identification results using unified results manager."""
         if not hasattr(self, 'result') or self.result is None:
             print("No identification results to save. Run solve() first.")
             return
-        
+
         # Use pre-initialized results manager if available
         if hasattr(self, 'results_manager') and \
            self.results_manager is not None:
@@ -817,17 +954,17 @@ class BaseIdentification(ABC):
                     output_dir=output_dir,
                     save_formats=['yaml', 'csv', 'npz']
                 )
-                
+
                 print("Identification results saved using ResultsManager")
                 for fmt, path in saved_files.items():
                     print(f"  {fmt}: {path}")
-                
+
                 return saved_files
-                
+
             except Exception as e:
                 print(f"Error saving with ResultsManager: {e}")
                 print("Falling back to basic saving...")
-        
+
         # Fallback to basic saving if ResultsManager not available
         try:
             import os
@@ -835,7 +972,7 @@ class BaseIdentification(ABC):
             import datetime
 
             os.makedirs(output_dir, exist_ok=True)
-            
+
             # Extract data from self.result dictionary
             parameter_values = self.result.get("base parameters values",
                                                np.array([]))
@@ -844,7 +981,7 @@ class BaseIdentification(ABC):
             rmse_norm = self.result.get("rmse norm (N/m)", 0)
             std_dev_param = self.result.get("std dev of estimated param",
                                             np.array([]))
-            
+
             results_dict = {
                 'base_parameters': (
                     parameter_values.tolist()
@@ -859,18 +996,18 @@ class BaseIdentification(ABC):
                     else std_dev_param
                 )
             }
-            
+
             robot_name = self.__class__.__name__.lower().replace(
                 'identification', '')
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{robot_name}_identification_results_{timestamp}.yaml"
 
             with open(os.path.join(output_dir, filename), "w") as f:
                 yaml.dump(results_dict, f, default_flow_style=False)
-            
+
             print(f"Results saved to {output_dir}/{filename}")
             return {filename: os.path.join(output_dir, filename)}
-            
+
         except Exception as e:
             print(f"Error in fallback saving: {e}")
             return None

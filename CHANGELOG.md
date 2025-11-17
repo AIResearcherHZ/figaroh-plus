@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Unreleased
+
+### Added
+- **Advanced Linear Solver (`figaroh.tools.solver`)**: Comprehensive multivariate linear solver for robot parameter identification
+  - Multiple solving methods: lstsq, QR, SVD, Ridge, Lasso, Elastic Net, Tikhonov, constrained, robust, weighted
+  - Regularization support: L1 (Lasso), L2 (Ridge), Elastic Net, custom Tikhonov
+  - Constraint handling: Box constraints (bounds), linear equality/inequality constraints
+  - Robust regression with iterative reweighting for outlier resistance
+  - Comprehensive solution quality metrics (RMSE, R², condition number, residuals)
+  - Optimized for dense, large, thin matrices typical in robot dynamics
+  - Full unit test coverage (18 tests) with robot identification scenarios
+
+- **Module Reorganization**: Better code organization and separation of concerns
+  - **Calibration module restructuring**:
+    - `calibration/config.py`: Configuration parsing and YAML handling (624 lines)
+    - `calibration/parameter.py`: Parameter management utilities (240 lines)
+    - `calibration/data_loader.py`: Data loading and I/O operations (160 lines)
+  - **Identification module restructuring**:
+    - `identification/config.py`: Configuration parsing for identification (334 lines)
+    - `identification/parameter.py`: Parameter management for identification (388 lines)
+  - Maintains 100% backward compatibility through re-exports
+
+- **BaseIdentification Enhancement**:
+  - `solve_with_custom_solver()`: New method using advanced linear solver with regularization and constraints
+  - Flexible solving with multiple methods and custom constraints
+  - Support for physical parameter bounds (e.g., positive masses/inertias)
+
+### Improved
+- **Parameter Ordering**: Changed to Pinocchio dynamic parameter ordering for consistency
+  - New order: [Ixx, Ixy, Ixz, Iyy, Iyz, Izz, mx, my, mz, m]
+  - Previous order: [m, mx, my, mz, Ixx, Ixy, Iyy, Ixz, Iyz, Izz]
+  
+- **Regressor Module**: Cleaned up build_basic_regressor methods
+  - Removed unused `tau` parameter for better API clarity
+  - Improved method signatures and documentation
+
+- **Code Quality**: Significant reduction in code duplication
+  - `calibration_tools.py`: Reduced from ~1500 to ~630 lines (-58%)
+  - `identification_tools.py`: Reduced from ~900 to ~295 lines (-67%)
+  - Modular design with clear single responsibilities
+
+### Fixed
+- Parameter naming: Changed from numbered indices to parent joint names for clarity
+- Regressor handling: Better support for additional columns in regressor matrices
+- Results manager imports and formatting issues
+
+### Technical Details
+- **Files Changed**: 21 files
+- **Lines Added**: +3,372
+- **Lines Removed**: -1,604
+- **Net Change**: +1,768 lines
+- **Test Coverage**: All 18 new solver tests passing
+
 ## [0.2.4] - 2025-09-08
 
 ### Changed
