@@ -189,7 +189,7 @@ class ResultsManager:
                                    facecolor='wheat', alpha=0.5))
             
             fig.suptitle(f"{self.robot_name.upper()} {title}", fontsize=16)
-            plt.tight_layout()
+            # plt.tight_layout()
             plt.show()
             
         except Exception as e:
@@ -296,7 +296,7 @@ class ResultsManager:
                          f"Condition: {condition_num:.2e} | "
                          f"RMSE: {rmse_norm:.6f}",
                          fontsize=16)
-            plt.tight_layout()
+            # plt.tight_layout()
             plt.show()
             
         except Exception as e:
