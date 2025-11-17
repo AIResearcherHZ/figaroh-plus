@@ -39,6 +39,7 @@ from figaroh.tools.regressor import (
     build_regressor_reduced,
 )
 from figaroh.identification.identification_tools import get_standard_parameters
+from figaroh.tools.solver import LinearSolver
 
 
 class BaseIdentification(ABC):
@@ -142,6 +143,138 @@ class BaseIdentification(ABC):
         # Step 6: Optional parameter saving
         if save_results:
             self.save_results()
+
+        return self.phi_base
+
+    def solve_with_custom_solver(
+        self, method='lstsq', regularization=None, alpha=0.0,
+        constraints=None, bounds=None, decimate=False,
+        decimation_factor=10, zero_tolerance=0.001,
+        plotting=False, save_results=False, **solver_kwargs
+    ):
+        """
+        Alternative solving method using advanced linear solver.
+
+        This method provides more flexibility than the default QR-based
+        solve(), offering multiple solving methods, regularization, and
+        constraints.
+
+        Args:
+            method (str): Solving method ('lstsq', 'ridge', 'lasso',
+                'constrained', etc.)
+            regularization (str): Regularization type ('l1', 'l2',
+                'elastic_net')
+            alpha (float): Regularization strength
+            constraints (dict): Linear constraints
+            bounds (tuple): Box constraints on parameters
+            decimate (bool): Whether to apply decimation
+            decimation_factor (int): Decimation factor if decimate=True
+            zero_tolerance (float): Tolerance for eliminating zero columns
+            plotting (bool): Whether to generate plots
+            save_results (bool): Whether to save parameters to file
+            **solver_kwargs: Additional arguments for LinearSolver
+
+        Returns:
+            ndarray: Identified base parameters
+
+        Example:
+            >>> # Ridge regression with L2 regularization
+            >>> phi = identification.solve_with_custom_solver(
+            ...     method='ridge', alpha=0.01)
+
+            >>> # Constrained optimization with physical bounds
+            >>> bounds = [(0, 100) for _ in range(n_params)]
+            >>> phi = identification.solve_with_custom_solver(
+            ...     method='constrained', bounds=bounds)
+        """
+        print(f"Starting {self.__class__.__name__} identification "
+              f"with custom solver...")
+
+        # Validate prerequisites
+        self._validate_prerequisites()
+
+        # Step 1: Eliminate zero columns
+        regressor_reduced, active_params = self._eliminate_zero_columns(
+            zero_tolerance
+        )
+
+        # Step 2: Apply decimation if requested
+        if decimate:
+            tau_processed, W_processed = self._apply_decimation(
+                regressor_reduced, decimation_factor
+            )
+        else:
+            tau_processed, W_processed = self._prepare_undecimated_data(
+                regressor_reduced
+            )
+
+        # Step 3: Solve using custom solver
+        solver = LinearSolver(
+            method=method,
+            regularization=regularization,
+            alpha=alpha,
+            constraints=constraints,
+            bounds=bounds,
+            verbose=True,
+            **solver_kwargs
+        )
+
+        # # Solve for reduced parameters
+        # phi_reduced = solver.solve(W_processed, tau_processed)
+
+        # # Map back to full parameter space
+        # phi_full = np.zeros(len(self.standard_parameter))
+        # active_indices = [
+        #     i for i, active in enumerate(active_params.values()) if active
+        # ]
+        # phi_full[active_indices] = phi_reduced
+
+        # Step 4: Compute base parameters using QR decomposition
+        from figaroh.tools.qrdecomposition import double_QR
+
+        W_base, _, base_parameters, _, phi_std = \
+            double_QR(
+                tau_processed, W_processed, active_params,
+                self.standard_parameter
+            )
+        phi_base = solver.solve(W_base, tau_processed)
+        base_param_dict = {param: phi_base[i] for i, param in enumerate(base_parameters)}
+        
+        # Store results
+        self.dynamic_regressor_base = W_base
+        self.phi_base = phi_base
+        self.params_base = list(base_param_dict.keys())
+        self.tau_identif = W_base @ phi_base
+        self.tau_noised = tau_processed
+
+        # Step 5: Compute quality metrics and store
+        self._compute_quality_metrics()
+
+        results = {
+            "base_regressor": W_base,
+            "base_param_dict": base_param_dict,
+            "base_parameters": base_parameters,
+            "phi_base": phi_base,
+            "tau_estimated": self.tau_identif,
+            "tau_processed": tau_processed,
+            "solver_info": solver.solver_info,
+            "solver_method": method,
+            "regularization": regularization,
+            "alpha": alpha
+        }
+
+        self._store_results(results)
+
+        # Step 6: Optional plotting
+        if plotting:
+            self.plot_results()
+
+        # Step 7: Optional parameter saving
+        if save_results:
+            self.save_results()
+
+        print(f"  RMSE: {self.rms_error:.6f}")
+        print(f"  Correlation: {self.correlation:.6f}")
 
         return self.phi_base
 
