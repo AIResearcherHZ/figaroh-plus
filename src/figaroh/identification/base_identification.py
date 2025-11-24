@@ -39,6 +39,10 @@ from figaroh.tools.regressor import (
     build_regressor_reduced,
 )
 from figaroh.identification.identification_tools import get_standard_parameters
+from figaroh.identification.parameter import (
+    add_standard_additional_parameters,
+    add_custom_parameters,
+)
 from figaroh.tools.solver import LinearSolver
 
 
@@ -67,6 +71,8 @@ class BaseIdentification(ABC):
         # Initialize attributes for identification results
         self.dynamic_regressor = None
         self.standard_parameter = None
+        self.additional_parameters = None
+        self.custom_parameters = None
         self.params_base = None
         self.dynamic_regressor_base = None
         self.phi_base = None
@@ -87,6 +93,8 @@ class BaseIdentification(ABC):
     def initialize(self, truncate=None):
         self.process_data(truncate=truncate)
         self.calculate_full_regressor()
+        self.initialize_standard_parameters()
+        self.compute_reference_torque()
 
     def solve(self, decimate=True, decimation_factor=10, zero_tolerance=0.001,
               plotting=True, save_results=False):
@@ -239,7 +247,7 @@ class BaseIdentification(ABC):
             )
         phi_base = solver.solve(W_base, tau_processed)
         base_param_dict = {param: phi_base[i] for i, param in enumerate(base_parameters)}
-        
+
         # Store results
         self.dynamic_regressor_base = W_base
         self.phi_base = phi_base
@@ -365,16 +373,41 @@ class BaseIdentification(ABC):
             self.identif_config,
         )
 
+    def initialize_standard_parameters(
+        self,
+    ):
+        """Initialize standard parameters for the robot."""
+
         # Compute standard parameters
-        self.standard_parameter = get_standard_parameters(self.model, self.identif_config)
+        self.standard_parameter = get_standard_parameters(
+            self.model, self.identif_config
+        )
 
         # additional parameters can be added in robot-specific subclass
-        self.add_additional_parameters()
+        if (
+            self.identif_config.get("has_friction", False)
+            or self.identif_config.get("has_actuator_inertia", False)
+            or self.identif_config.get("has_joint_offset", False)
+        ):
+            self.additional_parameters = add_standard_additional_parameters(
+                self.model, self.identif_config
+            )
+            self.standard_parameter.update(self.additional_parameters)
+
+        # Add custom parameters specific to the robot
+        if self.identif_config.get("has_custom_parameters", False):
+            self.custom_parameters = add_custom_parameters(
+                self.model, self.identif_config.get("custom_parameters", {})
+            )
+            self.standard_parameter.update(self.custom_parameters)
 
         # Convert all string values to floats in the standard_parameter dict
         for key, value in self.standard_parameter.items():
             if isinstance(value, str):
                 self.standard_parameter[key] = float(value)
+
+    def compute_reference_torque(self):
+        """Compute reference joint torques based on standard parameters and dynamic regressor."""
 
         # joint torque estimated from p,v,a with std params
         phi_ref = np.array(list(self.standard_parameter.values()))
@@ -382,10 +415,6 @@ class BaseIdentification(ABC):
 
         # filter only active joints
         self.tau_ref = tau_ref[range(len(self.identif_config["act_idxv"]) * self.num_samples)]
-
-    def add_additional_parameters(self):
-        """Add additional parameters specific to the robot and recalculate dynamic regressor."""
-        pass
 
     def _apply_filters(self, *signals, nbutter=4, f_butter=2, med_fil=5, f_sample=100):
         """Apply median and lowpass filters to any number of signals.
