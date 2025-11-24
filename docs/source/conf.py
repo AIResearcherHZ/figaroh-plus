@@ -6,8 +6,8 @@ sys.path.insert(0, os.path.abspath("../../src"))
 project = "figaroh"
 copyright = "2021-2025, Thanh Nguyen"
 author = "Thanh Nguyen"
-version = "0.1.0"
-release = "0.1.0"
+version = "0.3.0"
+release = "0.3.0"
 
 extensions = [
     "sphinx.ext.autodoc",
