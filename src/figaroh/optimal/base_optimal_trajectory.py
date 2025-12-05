@@ -65,8 +65,7 @@ class BaseOptimalTrajectory:
         self.model = self.robot.model
         self.active_joints = active_joints
 
-        # Set up logging
-        logging.basicConfig(level=logging.INFO)
+        # Set up logger (configuration should be done by application, not library)
         self.logger = logging.getLogger(__name__)
 
         # Load configuration
