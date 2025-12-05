@@ -16,6 +16,11 @@
 import logging
 import numpy as np
 from typing import Dict, List, Tuple, Any
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 from figaroh.identification.identification_tools import get_standard_parameters
 from figaroh.utils.cubic_spline import (
     CubicSpline,

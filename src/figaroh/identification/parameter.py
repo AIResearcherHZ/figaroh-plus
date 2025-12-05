@@ -23,7 +23,12 @@ This module handles parameter extraction, reordering, and management including:
 - Parameter information queries
 """
 
+import logging
 import numpy as np
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 # Export public API
@@ -129,14 +134,14 @@ def add_standard_additional_parameters(model, identif_config):
                         value = values_list[link_idx]
                     else:
                         value = param_def['default']
-                        print(
-                            f"Warning: Missing {param_def['description']} "
+                        logger.warning(
+                            f"Missing {param_def['description']} "
                             f"for joint {jname}, using default: {value}"
                         )
                 except (KeyError, IndexError, TypeError) as e:
                     value = param_def['default']
-                    print(
-                        f"Warning: Error getting {param_def['description']} "
+                    logger.warning(
+                        f"Error getting {param_def['description']} "
                         f"for joint {jname}: {e}, using default: {value}"
                     )
             else:
@@ -164,8 +169,8 @@ def add_custom_parameters(model, custom_params):
 
     for param_name, param_def in custom_params.items():
         if not isinstance(param_def, dict):
-            print(
-                f"Warning: Invalid custom parameter definition for "
+            logger.warning(
+                f"Invalid custom parameter definition for "
                 f"'{param_name}', skipping"
             )
             continue
@@ -187,15 +192,15 @@ def add_custom_parameters(model, custom_params):
                         value = default_value
                         # Only warn if values were provided but insufficient
                         if values:
-                            print(
-                                f"Warning: Missing value for custom "
+                            logger.warning(
+                                f"Missing value for custom "
                                 f"parameter '{param_name}' joint "
                                 f"{jname}, using default: {value}"
                             )
                 except (IndexError, TypeError):
                     value = default_value
-                    print(
-                        f"Warning: Error accessing custom parameter "
+                    logger.warning(
+                        f"Error accessing custom parameter "
                         f"'{param_name}' for joint {jname}, "
                         f"using default: {value}"
                     )
@@ -208,8 +213,8 @@ def add_custom_parameters(model, custom_params):
                 value = values[0] if values else default_value
             except (IndexError, TypeError):
                 value = default_value
-                print(
-                    f"Warning: Error accessing global custom parameter "
+                logger.warning(
+                    f"Error accessing global custom parameter "
                     f"'{param_name}', using default: {value}"
                 )
 

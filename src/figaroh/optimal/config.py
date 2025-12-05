@@ -13,9 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import yaml
 from typing import Dict, List, Tuple, Any
 from yaml.loader import SafeLoader
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 from figaroh.identification.identification_tools import (
     get_param_from_yaml as get_identification_param_from_yaml,
     unified_to_legacy_identif_config,
@@ -36,11 +42,11 @@ def load_param(robot, config_file: str) -> Tuple[Dict[str, Any], Any]:
     """Load trajectory parameters from YAML file."""
 
     try:
-        print(f"Loading config from {config_file}")
+        logger.info(f"Loading config from {config_file}")
 
         # Check if this is a unified configuration format
         if is_unified_config(config_file):
-            print("Detected unified configuration format")
+            logger.info("Detected unified configuration format")
             # Use unified parser
             parser = UnifiedConfigParser(config_file)
             unified_config = parser.parse()
@@ -57,7 +63,7 @@ def load_param(robot, config_file: str) -> Tuple[Dict[str, Any], Any]:
             trajectory_config = create_config(unified_traj_config)
 
         else:
-            print("Detected legacy configuration format")
+            logger.info("Detected legacy configuration format")
             # Use legacy format parsing
             with open(config_file, "r") as f:
                 config = yaml.load(f, Loader=yaml.SafeLoader)

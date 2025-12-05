@@ -23,8 +23,13 @@ This module contains the implementation of calibration algorithms including:
 - Data loading and processing utilities
 """
 
+import logging
 import numpy as np
 import pinocchio as pin
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 from ..tools.regressor import eliminate_non_dynaffect
 from ..tools.qrdecomposition import (
@@ -361,7 +366,7 @@ def update_forward_kinematics(model, data, var, q, calib_config, verbose=0):
                 for axis_id, axis in enumerate(axis_tpl):
                     if axis in key:
                         if verbose == 1:
-                            print(
+                            logger.debug(
                                 "Updating [{}] joint placement at axis {} with [{}]".format(
                                     j_name, axis, key
                                 )
@@ -381,7 +386,7 @@ def update_forward_kinematics(model, data, var, q, calib_config, verbose=0):
                 for axis_pee_id, axis_pee in enumerate(EE_TPL):
                     if axis_pee in key:
                         if verbose == 1:
-                            print(
+                            logger.debug(
                                 "Updating [{}_{}] joint placement at axis {} with [{}]".format(
                                     ee_name, str(marker_idx), axis_pee, key
                                 )
@@ -568,7 +573,7 @@ def calc_updated_fkm(model, data, var, q, calib_config, verbose=0):
                     for axis_pee_id, axis_pee in enumerate(EE_TPL):
                         if axis_pee in key:
                             if verbose == 1:
-                                print(
+                                logger.debug(
                                     "Updating [{}_{}] joint placement at axis {} with [{}]".format(
                                         ee_name, str(marker_idx), axis_pee, key
                                     )
@@ -579,7 +584,7 @@ def calc_updated_fkm(model, data, var, q, calib_config, verbose=0):
             eeMf = cartesian_to_SE3(pee)
     else:
         if calib_config["NbMarkers"] > 1:
-            print("Multiple markers are not supported.")
+            logger.warning("Multiple markers are not supported.")
         else:
             eeMf = pin.SE3.Identity()
 
@@ -598,7 +603,7 @@ def calc_updated_fkm(model, data, var, q, calib_config, verbose=0):
                 for axis_id, axis in enumerate(axis_tpl):
                     if axis in key:
                         if verbose == 1:
-                            print(
+                            logger.debug(
                                 "Updating [{}] joint placement at axis {} with [{}]".format(
                                     j_name, axis, key
                                 )

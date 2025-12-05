@@ -26,6 +26,11 @@ from abc import abstractmethod
 import numpy as np
 from matplotlib import pyplot as plt
 from typing import Dict, List, Tuple, Any
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 from figaroh.tools.regressor import (
     build_regressor_basic,
     build_regressor_reduced,

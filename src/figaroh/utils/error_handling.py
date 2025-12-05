@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Optional, TypeVar, Union
 import numpy as np
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # Type variable for decorators
 F = TypeVar('F', bound=Callable[..., Any])

@@ -20,6 +20,10 @@ from typing import Dict, List, Tuple, Any
 from figaroh.tools.robotcollisions import CollisionWrapper
 from figaroh.utils.cubic_spline import calc_torque
 
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 
 class TrajectoryConstraintManager:
     """Manages trajectory constraints and bounds."""

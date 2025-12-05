@@ -24,8 +24,13 @@ from various file formats, including:
 - Configuration vector management
 """
 
+import logging
 import numpy as np
 import pandas as pd
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 # Export public API
@@ -131,7 +136,7 @@ def load_data(path_to_file, model, calib_config, del_list=[]):
     csv_headers = list(df.columns)
     for header in PEE_headers + joint_headers:
         if header not in csv_headers:
-            print("%s does not exist in the file." % header)
+            logger.warning("%s does not exist in the file.", header)
             break
 
     # Extract marker position/location
