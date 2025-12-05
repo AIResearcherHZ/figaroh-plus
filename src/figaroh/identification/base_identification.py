@@ -19,9 +19,14 @@ This module provides a generalized framework for dynamic parameter identificatio
 that can be inherited by any robot type (TIAGo, UR10, MATE, etc.).
 """
 
+import logging
 import yaml
 import numpy as np
 from abc import ABC, abstractmethod
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # FIGAROH imports
 from figaroh.identification.identification_tools import (
@@ -88,7 +93,7 @@ class BaseIdentification(ABC):
             'differentiation_method': 'gradient',
             'filter_params': {}
         }
-        print(f"{self.__class__.__name__} initialized")
+        logger.info(f"{self.__class__.__name__} initialized")
 
     def initialize(self, truncate=None):
         self.process_data(truncate=truncate)
@@ -119,7 +124,8 @@ class BaseIdentification(ABC):
             ValueError: If data shapes are incompatible
             np.linalg.LinAlgError: If QR decomposition fails
         """
-        print(f"Starting {self.__class__.__name__} dynamic parameter identification...")
+        logger.info(
+            f"Starting {self.__class__.__name__} dynamic parameter identification...")
 
         # Validate prerequisites
         self._validate_prerequisites()
@@ -195,8 +201,9 @@ class BaseIdentification(ABC):
             >>> phi = identification.solve_with_custom_solver(
             ...     method='constrained', bounds=bounds)
         """
-        print(f"Starting {self.__class__.__name__} identification "
-              f"with custom solver...")
+        logger.info(
+            f"Starting {self.__class__.__name__} identification "
+            f"with custom solver...")
 
         # Validate prerequisites
         self._validate_prerequisites()
@@ -281,8 +288,8 @@ class BaseIdentification(ABC):
         if save_results:
             self.save_results()
 
-        print(f"  RMSE: {self.rms_error:.6f}")
-        print(f"  Correlation: {self.correlation:.6f}")
+        logger.info(f"  RMSE: {self.rms_error:.6f}")
+        logger.info(f"  Correlation: {self.correlation:.6f}")
 
         return self.phi_base
 
@@ -298,11 +305,11 @@ class BaseIdentification(ABC):
             setting_type (str): Configuration section to load 
         """
         try:
-            print(f"Loading config from {config_file}")
+            logger.info(f"Loading config from {config_file}")
 
             # Check if this is a unified configuration format
             if is_unified_config(config_file):
-                print("Detected unified configuration format")
+                logger.info("Detected unified configuration format")
                 # Use unified parser
                 parser = UnifiedConfigParser(config_file)
                 unified_config = parser.parse()
@@ -314,7 +321,7 @@ class BaseIdentification(ABC):
                     self.robot, unified_identif_config
                 )
             else:
-                print("Detected legacy configuration format")
+                logger.info("Detected legacy configuration format")
                 # Use legacy format parsing
                 with open(config_file, "r") as f:
                     config = yaml.load(f, Loader=yaml.SafeLoader)
@@ -322,7 +329,7 @@ class BaseIdentification(ABC):
                     self.robot, config[setting_type]
                 )
         except Exception as e:
-            print(f"Error loading config {config_file}: {e}")
+            logger.error(f"Error loading config {config_file}: {e}")
             raise
 
     @abstractmethod
@@ -904,13 +911,13 @@ class BaseIdentification(ABC):
             self.results_manager = ResultsManager('identification', robot_name, self.result)
 
         except ImportError as e:
-            print(f"Warning: ResultsManager not available: {e}")
+            logger.warning(f"ResultsManager not available: {e}")
             self.results_manager = None
 
     def plot_results(self):
         """Plot identification results using unified results manager."""
         if not hasattr(self, 'result') or self.result is None:
-            print("No identification results to plot. Run solve() first.")
+            logger.warning("No identification results to plot. Run solve() first.")
             return
 
         # Use pre-initialized results manager if available
@@ -922,8 +929,8 @@ class BaseIdentification(ABC):
                 return
 
             except Exception as e:
-                print(f"Error plotting with ResultsManager: {e}")
-                print("Falling back to basic plotting...")
+                logger.error(f"Error plotting with ResultsManager: {e}")
+                logger.info("Falling back to basic plotting...")
 
         # Fallback to basic plotting if ResultsManager not available
         try:
@@ -936,7 +943,7 @@ class BaseIdentification(ABC):
                                                np.array([]))
 
             if len(tau_measured) == 0 or len(tau_identified) == 0:
-                print("No torque data available for plotting")
+                logger.warning("No torque data available for plotting")
                 return
 
             plt.figure(figsize=(12, 8))
@@ -964,14 +971,14 @@ class BaseIdentification(ABC):
             plt.show()
 
         except ImportError:
-            print("Warning: matplotlib not available for plotting")
+            logger.warning("matplotlib not available for plotting")
         except Exception as e:
-            print(f"Warning: Plotting failed: {e}")
+            logger.warning(f"Plotting failed: {e}")
 
     def save_results(self, output_dir="results"):
         """Save identification results using unified results manager."""
         if not hasattr(self, 'result') or self.result is None:
-            print("No identification results to save. Run solve() first.")
+            logger.warning("No identification results to save. Run solve() first.")
             return
 
         # Use pre-initialized results manager if available
@@ -984,15 +991,15 @@ class BaseIdentification(ABC):
                     save_formats=['yaml', 'csv', 'npz']
                 )
 
-                print("Identification results saved using ResultsManager")
+                logger.info("Identification results saved using ResultsManager")
                 for fmt, path in saved_files.items():
-                    print(f"  {fmt}: {path}")
+                    logger.info(f"  {fmt}: {path}")
 
                 return saved_files
 
             except Exception as e:
-                print(f"Error saving with ResultsManager: {e}")
-                print("Falling back to basic saving...")
+                logger.error(f"Error saving with ResultsManager: {e}")
+                logger.info("Falling back to basic saving...")
 
         # Fallback to basic saving if ResultsManager not available
         try:
@@ -1034,9 +1041,9 @@ class BaseIdentification(ABC):
             with open(os.path.join(output_dir, filename), "w") as f:
                 yaml.dump(results_dict, f, default_flow_style=False)
 
-            print(f"Results saved to {output_dir}/{filename}")
+            logger.info(f"Results saved to {output_dir}/{filename}")
             return {filename: os.path.join(output_dir, filename)}
 
         except Exception as e:
-            print(f"Error in fallback saving: {e}")
+            logger.error(f"Error in fallback saving: {e}")
             return None

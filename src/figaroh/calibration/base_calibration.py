@@ -54,8 +54,9 @@ from figaroh.utils.error_handling import (
     handle_calibration_errors
 )
 
-# Setup logger
+# Setup logger for this module
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class BaseCalibration(ABC):
@@ -301,8 +302,8 @@ class BaseCalibration(ABC):
                 return
 
             except Exception as e:
-                print(f"Error plotting with ResultsManager: {e}")
-                print("Falling back to basic plotting...")
+                logger.error(f"Error plotting with ResultsManager: {e}")
+                logger.info("Falling back to basic plotting...")
 
         # Fallback to basic plotting if ResultsManager not available
         try:
@@ -311,7 +312,7 @@ class BaseCalibration(ABC):
             # self.plot_joint_configurations()
             plt.show()
         except Exception as e:
-            print(f"Warning: Plotting failed: {e}")
+            logger.warning(f"Plotting failed: {e}")
 
     def load_param(self, config_file: str, setting_type: str = "calibration"):
         """Load calibration parameters from YAML configuration file.
@@ -325,11 +326,11 @@ class BaseCalibration(ABC):
             setting_type (str): Configuration section to load 
         """
         try:
-            print(f"Loading config from {config_file}")
+            logger.info(f"Loading config from {config_file}")
 
             # Check if this is a unified configuration format
             if is_unified_config(config_file):
-                print(f"Detected unified configuration format")
+                logger.info("Detected unified configuration format")
                 # Use unified parser
                 parser = UnifiedConfigParser(config_file)
                 unified_config = parser.parse()
@@ -341,7 +342,7 @@ class BaseCalibration(ABC):
                     self.robot, unified_calib_config
                 )
             else:
-                print("Detected legacy configuration format")
+                logger.info("Detected legacy configuration format")
                 # Use legacy format parsing
                 with open(config_file, "r") as f:
                     config = yaml.load(f, Loader=SafeLoader)
@@ -884,7 +885,7 @@ class BaseCalibration(ABC):
             self.results_manager = ResultsManager('calibration', robot_name, self.results_data)
 
         except ImportError as e:
-            print(f"Warning: ResultsManager not available: {e}")
+            logger.warning(f"ResultsManager not available: {e}")
             self.results_manager = None
 
         # Update status
@@ -1165,7 +1166,7 @@ class BaseCalibration(ABC):
     def save_results(self, output_dir="results"):
         """Save calibration results using unified results manager."""
         if not hasattr(self, 'result') or self.results_data is None:
-            print("No calibration results to save. Run solve() first.")
+            logger.warning("No calibration results to save. Run solve() first.")
             return
 
         # Use pre-initialized results manager if available
@@ -1178,12 +1179,12 @@ class BaseCalibration(ABC):
                     save_formats=['yaml', 'csv', 'npz']
                 )
 
-                print("Calibration results saved using ResultsManager")
+                logger.info("Calibration results saved using ResultsManager")
                 for fmt, path in saved_files.items():
-                    print(f"  {fmt}: {path}")
+                    logger.info(f"  {fmt}: {path}")
 
                 return saved_files
 
             except Exception as e:
-                print(f"Error saving with ResultsManager: {e}")
-                print("Falling back to basic saving...")
+                logger.error(f"Error saving with ResultsManager: {e}")
+                logger.info("Falling back to basic saving...")
