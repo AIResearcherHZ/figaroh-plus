@@ -56,8 +56,8 @@ def get_sup_joints(model, start_frame, end_frame):
     """
     start_frameId = model.getFrameId(start_frame)
     end_frameId = model.getFrameId(end_frame)
-    start_par = model.frames[start_frameId].parent
-    end_par = model.frames[end_frameId].parent
+    start_par = model.frames[start_frameId].parentJoint
+    end_par = model.frames[end_frameId].parentJoint
     branch_s = model.supports[start_par].tolist()
     branch_e = model.supports[end_par].tolist()
     # remove 'universe' joint from branches
@@ -209,7 +209,7 @@ def get_param_from_yaml(robot, calib_data) -> dict:
     calib_config["IDX_TOOL"] = IDX_TOOL
 
     # tool_joint: ID of the joint right before the tool's frame (parent)
-    tool_joint = robot.model.frames[IDX_TOOL].parent
+    tool_joint = robot.model.frames[IDX_TOOL].parentJoint
     calib_config["tool_joint"] = tool_joint
 
     # indices of active joints: from base to tool_joint
