@@ -39,7 +39,7 @@ from figaroh.utils.cubic_spline import (
 from figaroh.tools.robotipopt import (
     IPOPTConfig, BaseOptimizationProblem, RobotIPOPTSolver
 )
-from figaroh.optimal.config import load_from_yaml
+from figaroh.optimal.config import load_param
 from figaroh.optimal.base_parameter import BaseParameterComputer
 from figaroh.optimal.contraints import TrajectoryConstraintManager
 
@@ -69,8 +69,8 @@ class BaseOptimalTrajectory:
         self.logger = logging.getLogger(__name__)
 
         # Load configuration
-        self.trajectory_config, self.identif_config = (
-            load_from_yaml(self.robot, config_file)
+        self.trajectory_config, self.identif_config = load_param(
+            self.robot, config_file
         )
 
         # # Initialize components

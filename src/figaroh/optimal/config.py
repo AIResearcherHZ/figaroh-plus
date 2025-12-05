@@ -32,24 +32,9 @@ class ConfigurationManager:
 
 
 @staticmethod
-def load_from_yaml(robot, config_file: str) -> Tuple[Dict[str, Any], Any]:
+def load_param(robot, config_file: str) -> Tuple[Dict[str, Any], Any]:
     """Load trajectory parameters from YAML file."""
-    # try:
-    #     with open(config_file, "r") as f:
-    #         config = yaml.load(f, Loader=SafeLoader)
 
-    #     identif_data = config["identification"]
-    #     traj_params = identif_data.get("trajectory_params", [{}])[0]
-
-    #     # Set default values if not present in config
-    #     trajectory_config = {
-    #         "n_wps": traj_params.get("n_wps", 5),
-    #         "freq": traj_params.get("freq", 100),
-    #         "t_s": traj_params.get("t_s", 2.0),
-    #         "soft_lim": traj_params.get("soft_lim", 0.05),
-    #         "max_attempts": traj_params.get("max_attempts", 1000),
-    #     }
-    #     identif_config = get_param_from_yaml(robot, identif_data)
     try:
         print(f"Loading config from {config_file}")
 
