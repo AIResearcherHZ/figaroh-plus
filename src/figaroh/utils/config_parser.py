@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from .error_handling import ConfigurationError
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 @dataclass

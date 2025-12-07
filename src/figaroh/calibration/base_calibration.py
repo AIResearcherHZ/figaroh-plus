@@ -54,8 +54,9 @@ from figaroh.utils.error_handling import (
     handle_calibration_errors
 )
 
-# Setup logger
+# Setup logger for this module
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class BaseCalibration(ABC):
@@ -123,7 +124,7 @@ class BaseCalibration(ABC):
         - calc_updated_fkm: Forward kinematics computation function
         - apply_measurement_weighting: Unit-aware weighting utility
     """
-    
+
     @handle_calibration_errors
     def __init__(self, robot, config_file: str, del_list: List[int] = None):
         """Initialize robot calibration framework.
@@ -161,15 +162,15 @@ class BaseCalibration(ABC):
         """
         if del_list is None:
             del_list = []
-            
+
         # Validate inputs
         if not hasattr(robot, 'model') or not hasattr(robot, 'data'):
             raise CalibrationError(
                 "Robot must have 'model' and 'data' attributes")
-        
-        self._robot = robot
-        self.model = self._robot.model
-        self.data = self._robot.data
+
+        self.robot = robot
+        self.model = self.robot.model
+        self.data = self.robot.data
         self.del_list_ = del_list
         self.calib_config = None
         self.load_param(config_file)
@@ -241,21 +242,21 @@ class BaseCalibration(ABC):
                                  max_iterations=max_iterations,
                                  outlier_threshold=outlier_threshold,
                                  enable_logging=enable_logging)
-        
+
         # Evaluate solution
         evaluation = self._evaluate_solution(result, outlier_indices)
-        
+
         # Log final results
         if enable_logging:
             logger.info("="*30)
             logger.info("FINAL CALIBRATION RESULTS")
             logger.info("="*30)
             self._log_iteration_results("FINAL", result, evaluation)
-            
+
             if len(outlier_indices) > 0:
                 logger.info(f"Outlier samples: {outlier_indices}")
             logger.info("Calibration completed successfully!")
-        
+
         # Store results
         self._store_optimization_results(result, evaluation, outlier_indices)
 
@@ -265,7 +266,7 @@ class BaseCalibration(ABC):
         if save_results:
             self.save_results()
         return result
-    
+
     def plot_results(self):
         """Generate comprehensive visualization plots for calibration results.
         
@@ -299,11 +300,11 @@ class BaseCalibration(ABC):
                 # Plot using unified manager with self.result data
                 self.results_manager.plot_calibration_results()
                 return
-                
+
             except Exception as e:
-                print(f"Error plotting with ResultsManager: {e}")
-                print("Falling back to basic plotting...")
-        
+                logger.error(f"Error plotting with ResultsManager: {e}")
+                logger.info("Falling back to basic plotting...")
+
         # Fallback to basic plotting if ResultsManager not available
         try:
             self.plot_errors_distribution()
@@ -311,7 +312,7 @@ class BaseCalibration(ABC):
             # self.plot_joint_configurations()
             plt.show()
         except Exception as e:
-            print(f"Warning: Plotting failed: {e}")
+            logger.warning(f"Plotting failed: {e}")
 
     def load_param(self, config_file: str, setting_type: str = "calibration"):
         """Load calibration parameters from YAML configuration file.
@@ -325,37 +326,35 @@ class BaseCalibration(ABC):
             setting_type (str): Configuration section to load 
         """
         try:
-            print(f"Loading config from {config_file}")
-            
+            logger.info(f"Loading config from {config_file}")
+
             # Check if this is a unified configuration format
             if is_unified_config(config_file):
-                print(f"Detected unified configuration format")
+                logger.info("Detected unified configuration format")
                 # Use unified parser
                 parser = UnifiedConfigParser(config_file)
                 unified_config = parser.parse()
                 unified_calib_config = create_task_config(
-                    self._robot, unified_config, setting_type
+                    self.robot, unified_config, setting_type
                 )
                 # Convert unified format to legacy calib_config format
                 self.calib_config = unified_to_legacy_config(
-                    self._robot, unified_calib_config
+                    self.robot, unified_calib_config
                 )
             else:
-                print("Detected legacy configuration format")
+                logger.info("Detected legacy configuration format")
                 # Use legacy format parsing
                 with open(config_file, "r") as f:
                     config = yaml.load(f, Loader=SafeLoader)
-                
+
                 if setting_type not in config:
                     raise KeyError(
                         f"Setting type '{setting_type}' not found in config"
                     )
-                    
+
                 calib_data = config[setting_type]
-                self.calib_config = get_param_from_yaml(
-                    self._robot, calib_data
-                )
-            
+                self.calib_config = get_param_from_yaml(self.robot, calib_data)
+
         except FileNotFoundError:
             raise CalibrationError(
                 f"Configuration file not found: {config_file}"
@@ -411,7 +410,7 @@ class BaseCalibration(ABC):
             q_ = []
         else:
             q_ = q
-            
+
         try:
             (
                 Rrand_b,
@@ -422,14 +421,14 @@ class BaseCalibration(ABC):
             ) = calculate_base_kinematics_regressor(
                 q_, self.model, self.data, self.calib_config, tol_qr=1e-6
             )
-            
+
             if self.calib_config["known_baseframe"] is False:
                 add_base_name(self.calib_config)
             if self.calib_config["known_tipframe"] is False:
                 add_pee_name(self.calib_config)
-                
+
             return True
-            
+
         except Exception as e:
             raise CalibrationError(f"Parameter list creation failed: {e}")
 
@@ -536,7 +535,7 @@ class BaseCalibration(ABC):
             ...     return weighted_residuals
         """
         import warnings
-        
+
         # Issue warning about using default implementation
         warnings.warn(
             f"Using default cost function for {self.__class__.__name__}. "
@@ -546,12 +545,12 @@ class BaseCalibration(ABC):
             UserWarning,
             stacklevel=2
         )
-        
+
         # Default implementation: basic residual calculation
         PEEe = calc_updated_fkm(self.model, self.data, var,
                                 self.q_measured, self.calib_config)
         raw_residuals = self.PEE_measured - PEEe
-        
+
         # Apply basic measurement weighting if configuration is available
         try:
             weighted_residuals = self.apply_measurement_weighting(
@@ -591,15 +590,15 @@ class BaseCalibration(ABC):
             pos_std = self.calib_config.get("measurement_std", {}).get(
                 "position", 0.001)
             pos_weight = 1.0 / pos_std
-        
+
         if orient_weight is None:
             orient_std = self.calib_config.get("measurement_std", {}).get(
                 "orientation", 0.01)
             orient_weight = 1.0 / orient_std
-        
+
         weighted_residuals = []
         residual_idx = 0
-        
+
         # Process each sample for each marker
         for marker in range(self.calib_config["NbMarkers"]):
             for dof, is_measured in enumerate(self.calib_config["measurability"]):
@@ -619,23 +618,23 @@ class BaseCalibration(ABC):
         # Create logger
         logger = logging.getLogger('calibration')
         logger.setLevel(logging.INFO)
-        
+
         # Clear existing handlers to avoid duplicates
         logger.handlers.clear()
-        
+
         # Create console handler
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
-        
+
         # Create formatter
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         console_handler.setFormatter(formatter)
-        
+
         # Add handler to logger
         logger.addHandler(console_handler)
-        
+
         return logger
 
     def _optimize_with_outlier_removal(self, var_init: np.ndarray,
@@ -656,10 +655,10 @@ class BaseCalibration(ABC):
         logger = logging.getLogger('calibration')
         current_var = var_init.copy()
         outlier_indices = []
-        
+
         for iteration in range(max_iterations):
             logger.info(f"Outlier removal iteration {iteration + 1}")
-            
+
             # Run optimization
             result = least_squares(
                 self.cost_function,
@@ -667,30 +666,30 @@ class BaseCalibration(ABC):
                 method=method,
                 max_nfev=1000
             )
-            
+
             if not result.success:
                 logger.warning(
                     f"Optimization failed at iteration {iteration + 1}")
                 break
-                
+
             # Calculate residuals and detect outliers
             PEE_est = self.get_pose_from_measure(result.x)
             residuals = PEE_est - self.PEE_measured
             new_outliers = self._detect_outliers(residuals, outlier_threshold)
-            
+
             if len(new_outliers) == 0:
                 logger.info("No outliers detected, optimization converged")
                 break
-                
+
             outlier_indices.extend(new_outliers)
             outlier_indices = list(set(outlier_indices))  # Remove duplicates
-            
+
             logger.info(f"Detected {len(new_outliers)} new outliers, "
                         f"total outliers: {len(outlier_indices)}")
-            
+
             # Update for next iteration
             current_var = result.x
-            
+
         return result, outlier_indices, residuals
 
     def _detect_outliers(self, residuals: np.ndarray, threshold: float) -> List[int]:
@@ -706,20 +705,20 @@ class BaseCalibration(ABC):
         # Reshape residuals to per-sample format
         n_dofs = self.calib_config["calibration_index"]
         n_samples = self.calib_config["NbSample"]
-        
+
         if len(residuals) != n_dofs * n_samples:
             return []
-            
+
         residuals_2d = residuals.reshape((n_dofs, n_samples))
-        
+
         # Calculate RMS error per sample
         rms_errors = np.sqrt(np.mean(residuals_2d**2, axis=0))
-        
+
         # Detect outliers
         mean_error = np.mean(rms_errors)
         std_error = np.std(rms_errors)
         threshold_value = mean_error + threshold * std_error
-        
+
         outliers = np.where(rms_errors > threshold_value)[0].tolist()
         return outliers
 
@@ -737,12 +736,12 @@ class BaseCalibration(ABC):
         residuals = PEE_est - self.PEE_measured
         n_dofs = self.calib_config["calibration_index"]
         n_samples = self.calib_config["NbSample"]
-        
+
         # Calculate metrics
         rmse = np.sqrt(np.mean(residuals**2))
         mae = np.mean(np.abs(residuals))
         max_error = np.max(np.abs(residuals))
-        
+
         # Per-sample metrics
         if len(residuals) == n_dofs * n_samples:
             residuals_2d = residuals.reshape((n_dofs, n_samples))
@@ -752,10 +751,10 @@ class BaseCalibration(ABC):
         else:
             mean_sample_rms = rmse
             std_sample_rms = 0.0
-        
+
         # Calculate standard deviation of estimated parameters
         self.calc_stddev(result)
-        
+
         return {
             'rmse': rmse,
             'mae': mae,
@@ -798,7 +797,7 @@ class BaseCalibration(ABC):
             evaluation (dict): Solution evaluation metrics
         """
         logger = logging.getLogger('calibration')
-        
+
         logger.info(f"Iteration {iteration} Results:")
         logger.info(f"  Success: {evaluation['optimization_success']}")
         logger.info(f"  RMSE: {evaluation['rmse']:.6f}")
@@ -822,18 +821,18 @@ class BaseCalibration(ABC):
         self.LM_result = result
         self.var_ = result.x
         self.uncalib_values = np.zeros_like(result.x)  # Store initial guess
-        
+
         # Store evaluation metrics
         self.evaluation_metrics = evaluation
         self.outlier_indices = outlier_indices
-        
+
         # Calculate per-sample error distribution for plotting
         PEE_est = self.get_pose_from_measure(result.x)
         residuals = PEE_est - self.PEE_measured
         n_dofs = self.calib_config["calibration_index"]
         n_samples = self.calib_config["NbSample"]
         n_markers = self.calib_config["NbMarkers"]
-        
+
         # if len(residuals) == n_dofs * n_samples * n_markers:
         #     residuals_3d = residuals.reshape((n_markers, n_dofs, n_samples))
         #     self._PEE_dist = np.sqrt(np.mean(residuals_3d**2, axis=1))
@@ -874,7 +873,7 @@ class BaseCalibration(ABC):
         # Initialize ResultsManager for calibration task
         try:
             from figaroh.utils.results_manager import ResultsManager
-            
+
             # Get robot name from class or model
             robot_name = getattr(
                 self, 'robot_name',
@@ -884,9 +883,9 @@ class BaseCalibration(ABC):
                         'calibration', '')))
             # Initialize results manager for calibration task
             self.results_manager = ResultsManager('calibration', robot_name, self.results_data)
-            
+
         except ImportError as e:
-            print(f"Warning: ResultsManager not available: {e}")
+            logger.warning(f"ResultsManager not available: {e}")
             self.results_manager = None
 
         # Update status
@@ -928,7 +927,7 @@ class BaseCalibration(ABC):
             raise CalibrationError("Call load_data_set() first")
         if not hasattr(self, 'q_measured'):
             raise CalibrationError("Call load_data_set() first")
-        
+
         # Setup logging
         if enable_logging:
             logger = self._setup_logging()
@@ -938,20 +937,20 @@ class BaseCalibration(ABC):
             logger.info(f"Markers: {self.calib_config['NbMarkers']}")
             logger.info(f"Samples: {self.calib_config['NbSample']}")
             logger.info(f"DOFs: {self.calib_config['calibration_index']}")
-        
+
         # Initialize parameters
         if var_init is None:
             var_init, _ = initialize_variables(self.calib_config, mode=0)
-        
+
         try:
             # Run optimization with outlier removal
             result, outlier_indices, final_residuals = \
                 self._optimize_with_outlier_removal(
                     var_init, method, max_iterations, outlier_threshold
                 )
-            
+
             return result, outlier_indices
-            
+
         except Exception as e:
             if enable_logging:
                 logger = logging.getLogger('calibration')
@@ -1167,9 +1166,9 @@ class BaseCalibration(ABC):
     def save_results(self, output_dir="results"):
         """Save calibration results using unified results manager."""
         if not hasattr(self, 'result') or self.results_data is None:
-            print("No calibration results to save. Run solve() first.")
+            logger.warning("No calibration results to save. Run solve() first.")
             return
-        
+
         # Use pre-initialized results manager if available
         if hasattr(self, 'results_manager') and \
            self.results_manager is not None:
@@ -1180,12 +1179,12 @@ class BaseCalibration(ABC):
                     save_formats=['yaml', 'csv', 'npz']
                 )
 
-                print("Calibration results saved using ResultsManager")
+                logger.info("Calibration results saved using ResultsManager")
                 for fmt, path in saved_files.items():
-                    print(f"  {fmt}: {path}")
-                
+                    logger.info(f"  {fmt}: {path}")
+
                 return saved_files
-                
+
             except Exception as e:
-                print(f"Error saving with ResultsManager: {e}")
-                print("Falling back to basic saving...")
+                logger.error(f"Error saving with ResultsManager: {e}")
+                logger.info("Falling back to basic saving...")

@@ -166,6 +166,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Optional, Any, Callable, Union
 
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 
 @dataclass
 class IPOPTConfig:

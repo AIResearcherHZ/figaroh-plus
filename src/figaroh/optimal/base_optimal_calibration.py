@@ -19,21 +19,36 @@ This module provides a generalized framework for optimal configuration
 generation that can be inherited by any robot type (TIAGo, UR10, MATE, etc.).
 """
 
-import os
+import logging
 import yaml
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from abc import ABC, abstractmethod
+from abc import ABC
 from yaml.loader import SafeLoader
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # FIGAROH imports
 from figaroh.calibration.calibration_tools import (
     load_data,
     get_param_from_yaml,
+    unified_to_legacy_config,
     calculate_base_kinematics_regressor,
 )
 
+from figaroh.utils.config_parser import (
+    UnifiedConfigParser,
+    create_task_config,
+    is_unified_config,
+)
+
+# Import from shared modules
+from figaroh.utils.error_handling import (
+    CalibrationError,
+)
 
 class BaseOptimalCalibration(ABC):
     """Base class for robot optimal configuration generation for calibration.
@@ -108,7 +123,7 @@ class BaseOptimalCalibration(ABC):
         TiagoOptimalCalibration: TIAGo-specific implementation
         UR10OptimalCalibration: UR10-specific implementation
     """
-    
+
     def __init__(self, robot, config_file="config/robot_config.yaml"):
         """Initialize optimal calibration with robot model and configuration.
         
@@ -148,12 +163,12 @@ class BaseOptimalCalibration(ABC):
         self.model = robot.model
         self.data = robot.data
         self.load_param(config_file)
-        
+
         # Initialize attributes for optimal calibration
         self.optimal_configurations = None
         self.optimal_weights = None
         self._sampleConfigs_file = self.calib_config.get("sample_configs_file")
-        
+
         # Calculate minimum number of configurations needed
         if self.calib_config["calib_model"] == "full_params":
             self.minNbChosen = (
@@ -169,9 +184,9 @@ class BaseOptimalCalibration(ABC):
                 int(len(self.calib_config["actJoint_idx"]) / self.calib_config["calibration_index"])
                 + 1
             )
-        
-        print(f"{self.__class__.__name__} initialized")
-    
+
+        logger.info(f"{self.__class__.__name__} initialized")
+
     def initialize(self):
         """Initialize the optimization process by preparing all required data.
         
@@ -206,7 +221,7 @@ class BaseOptimalCalibration(ABC):
         self.load_candidate_configurations()
         self.calculate_regressor()
         self.calculate_detroot_whole()
-    
+
     def solve(self, save_file=False):
         """Solve the optimal configuration selection problem.
         
@@ -256,43 +271,60 @@ class BaseOptimalCalibration(ABC):
         if save_file:
             try:
                 self.save_results()
-                print("Optimal configurations written to file successfully")
+                logger.info("Optimal configurations written to file successfully")
             except Exception as e:
-                print(f"Warning: Could not write to file: {e}")
+                logger.warning(f"Could not write to file: {e}")
         self.plot()
-    
-    def load_param(self, config_file, setting_type="calibration"):
-        """Load optimization parameters from YAML configuration file.
-        
-        Reads and parses calibration configuration from YAML file, extracting
-        robot-specific parameters needed for optimal configuration generation.
-        The configuration supports multiple setting types within the same file.
-        
+
+    def load_param(self, config_file: str, setting_type: str = "calibration"):
+        """Load calibration parameters from YAML configuration file.
+
+        This method supports both legacy YAML format and the new unified
+        configuration format. It automatically detects the format type
+        and applies the appropriate parser.
+
         Args:
-            config_file (str): Path to YAML configuration file containing
-                             optimization and calibration parameters
-            setting_type (str): Configuration section to load. Options include
-                              "calibration", "identification", or custom
-                              section names. Default "calibration".
-                              
-        Side Effects:
-            - Updates self.calib_config with loaded configuration dictionary
-            - Overwrites any existing parameter settings
-            
-        Raises:
-            FileNotFoundError: If config_file does not exist
-            yaml.YAMLError: If YAML parsing fails
-            KeyError: If setting_type section not found in config
-            
-        Example:
-            >>> opt_calib.load_param("config/tiago_optimal.yaml")
-            >>> print(opt_calib.calib_config["calib_model"])  # "full_params"
-            >>> print(opt_calib.calib_config["NbSample"])     # 1000
+            config_file (str): Path to configuration file (legacy or unified)
+            setting_type (str): Configuration section to load
         """
-        with open(config_file, "r") as f:
-            config = yaml.load(f, Loader=SafeLoader)
-        calib_data = config[setting_type]
-        self.calib_config = get_param_from_yaml(self.robot, calib_data)
+        try:
+            logger.info(f"Loading config from {config_file}")
+
+            # Check if this is a unified configuration format
+            if is_unified_config(config_file):
+                logger.info("Detected unified configuration format")
+                # Use unified parser
+                parser = UnifiedConfigParser(config_file)
+                unified_config = parser.parse()
+                unified_calib_config = create_task_config(
+                    self.robot, unified_config, setting_type
+                )
+                # Convert unified format to legacy calib_config format
+                self.calib_config = unified_to_legacy_config(
+                    self.robot, unified_calib_config
+                )
+            else:
+                logger.info("Detected legacy configuration format")
+                # Use legacy format parsing
+                with open(config_file, "r") as f:
+                    config = yaml.load(f, Loader=SafeLoader)
+
+                if setting_type not in config:
+                    raise KeyError(
+                        f"Setting type '{setting_type}' not found in config"
+                    )
+
+                calib_data = config[setting_type]
+                self.calib_config = get_param_from_yaml(
+                    self.robot, calib_data
+                )
+
+        except FileNotFoundError:
+            raise CalibrationError(
+                f"Configuration file not found: {config_file}"
+            )
+        except Exception as e:
+            raise CalibrationError(f"Failed to load configuration: {e}")
 
     def load_candidate_configurations(self):
         """Load candidate joint configurations from external data files.
@@ -327,11 +359,11 @@ class BaseOptimalCalibration(ABC):
             >>> print(opt_calib.q_measured.shape)  # (1000, 7) for TIAGo
         """
         from figaroh.calibration.calibration_tools import get_idxq_from_jname
-        
+
         if self._sampleConfigs_file is None:
             raise ValueError("sample_configs_file not specified in "
                              "configuration")
-        
+
         if "csv" in self._sampleConfigs_file:
             _, self.q_measured = load_data(
                 self._data_path, self.model, self.calib_config, []
@@ -358,7 +390,7 @@ class BaseOptimalCalibration(ABC):
             self.calib_config["NbSample"] = self.q_measured.shape[0]
         else:
             raise ValueError("Data file format not supported. Use CSV or YAML format.")
-    
+
     def calculate_regressor(self):
         """Calculate kinematic regressors and information matrices.
         
@@ -413,7 +445,7 @@ class BaseOptimalCalibration(ABC):
         self._subX_dict = subX_dict
         self._subX_list = subX_list
         return True
-    
+
     def calculate_detroot_whole(self):
         """Calculate determinant root of complete information matrix.
         
@@ -449,7 +481,7 @@ class BaseOptimalCalibration(ABC):
         assert self.calculate_regressor(), "Calculate regressor first."
         M_whole = np.matmul(self.R_rearr.T, self.R_rearr)
         self.detroot_whole = pc.DetRootN(M_whole) / np.sqrt(M_whole.shape[0])
-        print("detrootn of whole matrix:", self.detroot_whole)
+        logger.info(f"detrootn of whole matrix: {self.detroot_whole}")
 
     def rearrange_rb(self, R_b, calib_config):
         """rearrange the kinematic regressor by sample numbered order"""
@@ -505,7 +537,7 @@ class BaseOptimalCalibration(ABC):
             )
         )
         return subX_list, subX_dict
-    
+
     def calculate_optimal_configurations(self):
         """Solve SOCP optimization to find optimal configuration subset.
         
@@ -558,7 +590,7 @@ class BaseOptimalCalibration(ABC):
         SOCP_algo = SOCPOptimizer(self._subX_dict, self.calib_config)
         self.w_list, self.w_dict_sort = SOCP_algo.solve()
         solve_time = time.time() - prev_time
-        print("solve time of socp: ", solve_time)
+        logger.info(f"solve time of socp: {solve_time}")
 
         # Select optimal config based on values of weight
         self.eps_opt = 1e-5
@@ -571,7 +603,7 @@ class BaseOptimalCalibration(ABC):
             len(chosen_config) >= self.minNbChosen
         ), "Infeasible design, try to increase NbSample."
 
-        print(len(chosen_config), "configs are chosen: ", chosen_config)
+        logger.info(f"{len(chosen_config)} configs are chosen: {chosen_config}")
         self.nb_chosen = len(chosen_config)
 
         # Store optimal configurations and weights
@@ -676,36 +708,36 @@ class BaseOptimalCalibration(ABC):
         plt.show()
 
         return True
-    
+
     def plot_results(self):
         """Plot optimal calibration results using unified results manager."""
         if not hasattr(self, 'optimal_configurations') or self.optimal_configurations is None:
-            print("No optimal configuration results to plot. Run solve() first.")
+            logger.warning("No optimal configuration results to plot. Run solve() first.")
             return
-        
+
         try:
             from .results_manager import ResultsManager
-            
+
             # Initialize results manager
             robot_name = self.calib_config.get("robot_name", self.model.name)
             results_manager = ResultsManager('optimal_calibration', robot_name)
-            
+
             # Prepare data for plotting
             weights = np.array(list(self.w_dict_sort.values())) if hasattr(self, 'w_dict_sort') else np.array([])
-            
+
             # Plot using unified manager
             results_manager.plot_optimal_calibration_results(
                 configurations=self.optimal_configurations,
                 weights=weights,
                 title="Optimal Calibration Configuration Results"
             )
-            
+
         except ImportError:
             # Fallback to existing plotting
             import matplotlib.pyplot as plt
-            
+
             fig, ax = plt.subplots(1, 2, figsize=(14, 6))
-            
+
             ax[0].bar(
                 list(self.w_dict_sort.keys()),
                 list(self.w_dict_sort.values()),
@@ -716,7 +748,7 @@ class BaseOptimalCalibration(ABC):
             ax[0].spines["top"].set_visible(False)
             ax[0].spines["right"].set_visible(False)
             ax[0].grid(True, linestyle="--")
-            
+
             ax[1].bar(
                 list(self.w_dict_sort.keys()),
                 list(self.w_dict_sort.values()),
@@ -726,20 +758,20 @@ class BaseOptimalCalibration(ABC):
             ax[1].spines["right"].set_visible(False)
             ax[1].grid(True, linestyle="--")
             plt.show()
-    
+
     def save_results(self, output_dir="results"):
         """Save optimal configuration results using unified results manager."""
         if not hasattr(self, 'optimal_configurations') or self.optimal_configurations is None:
-            print("No optimal configuration results to save. Run solve() first.")
+            logger.warning("No optimal configuration results to save. Run solve() first.")
             return
-        
+
         try:
             from .results_manager import ResultsManager
-            
+
             # Initialize results manager
             robot_name = self.calib_config.get("robot_name", self.model.name)
             results_manager = ResultsManager('optimal_calibration', robot_name)
-            
+
             # Prepare results dictionary
             results_dict = {
                 'optimal_configurations': self.optimal_configurations,
@@ -748,27 +780,27 @@ class BaseOptimalCalibration(ABC):
                 'configuration_count': len(self.optimal_configurations),
                 'calibration_config': self.calib_config
             }
-            
+
             # Add condition number if available
             if hasattr(self, 'detroot_whole'):
                 results_dict['condition_number'] = float(self.detroot_whole)
-            
+
             # Save using unified manager
             saved_files = results_manager.save_results(
                 results_dict,
                 output_dir,
                 save_formats=['yaml', 'csv']
             )
-            
+
             return saved_files
-            
+
         except ImportError:
             # Fallback to existing saving
             import os
             import yaml
-            
+
             os.makedirs(output_dir, exist_ok=True)
-            
+
             robot_name = self.calib_config.get("robot_name", self.model.name)
             filename = f"{robot_name}_optimal_configurations.yaml"
 
@@ -781,9 +813,9 @@ class BaseOptimalCalibration(ABC):
                         default_flow_style=True,
                     )
                 except yaml.YAMLError as exc:
-                    print(exc)
-            print(f"Results saved to {output_dir}/{filename}")
-            
+                    logger.error(exc)
+            logger.info(f"Results saved to {output_dir}/{filename}")
+
             return {
                 'yaml': os.path.join(output_dir, filename)
             }
@@ -851,7 +883,7 @@ class SOCPOptimizer:
         w_list = []
         for i in range(self.w.dim):
             w_list.append(float(self.w.value[i]))
-        print("sum of all element in vector solution: ", sum(w_list))
+        logger.info(f"sum of all element in vector solution: {sum(w_list)}")
 
         # to dict
         w_dict = dict(zip(np.arange(self.calib_config["NbSample"]), w_list))

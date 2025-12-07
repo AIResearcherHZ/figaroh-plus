@@ -13,11 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import numpy as np
 import meshcat
 import pinocchio as pin
 from pinocchio.visualize import MeshcatVisualizer as PMV
 from . import colors
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 def materialFromColor(color):
@@ -85,7 +90,7 @@ class MeshcatVisualizer(PMV):
         if url is not None:
             if url == "classical":
                 url = "tcp://127.0.0.1:6000"
-            print("Wrapper tries to connect to server <%s>" % url)
+            logger.info("Wrapper tries to connect to server <%s>", url)
             server = meshcat.Visualizer(zmq_url=url)
         else:
             server = None
@@ -121,10 +126,10 @@ class MeshcatVisualizer(PMV):
                 p = placement[:3]
                 T = np.r_[np.c_[R, p], [[0, 0, 0, 1]]]
             else:
-                print("Error, np.shape of placement is not accepted")
+                logger.error("Error, np.shape of placement is not accepted")
                 return False
         else:
-            print("Error format of placement is not accepted")
+            logger.error("Error format of placement is not accepted")
             return False
         self.viewer[name].set_transform(T)
 

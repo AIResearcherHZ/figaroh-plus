@@ -23,7 +23,12 @@ This module handles parameter extraction, reordering, and management including:
 - Parameter information queries
 """
 
+import logging
 import numpy as np
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 # Export public API
@@ -68,19 +73,19 @@ def reorder_inertial_parameters(pinocchio_params):
     return reordered.tolist()
 
 
-def add_standard_additional_parameters(phi, params, identif_config, model):
+def add_standard_additional_parameters(model, identif_config):
     """Add standard additional parameters (actuator inertia, friction,
     offsets).
 
     Args:
-        phi: Current parameter values list
-        params: Current parameter names list
-        identif_config: Configuration dictionary
         model: Robot model
+        identif_config (dict): Identification configuration
 
     Returns:
-        tuple: Updated (phi, params) lists
+        dict: Additional parameters with their values
     """
+    phi = []
+    params = []
 
     # Standard additional parameters configuration
     additional_params = [
@@ -129,14 +134,14 @@ def add_standard_additional_parameters(phi, params, identif_config, model):
                         value = values_list[link_idx]
                     else:
                         value = param_def['default']
-                        print(
-                            f"Warning: Missing {param_def['description']} "
+                        logger.warning(
+                            f"Missing {param_def['description']} "
                             f"for joint {jname}, using default: {value}"
                         )
                 except (KeyError, IndexError, TypeError) as e:
                     value = param_def['default']
-                    print(
-                        f"Warning: Error getting {param_def['description']} "
+                    logger.warning(
+                        f"Error getting {param_def['description']} "
                         f"for joint {jname}: {e}, using default: {value}"
                     )
             else:
@@ -144,26 +149,28 @@ def add_standard_additional_parameters(phi, params, identif_config, model):
 
             phi.append(value)
 
-    return phi, params
+    return dict(zip(params, phi))
 
 
-def add_custom_parameters(phi, params, custom_params, model):
+def add_custom_parameters(model, custom_params):
     """Add custom user-defined parameters.
 
     Args:
-        phi: Current parameter values list
-        params: Current parameter names list
-        custom_params: Custom parameter definitions
         model: Robot model
+        custom_params (dict): Custom parameter definitions
+            Format: {param_name: {values: list, per_joint: bool,
+            default: float}}
 
     Returns:
-        tuple: Updated (phi, params) lists
+        dict: Custom parameters with their values
     """
+    phi = []
+    params = []
 
     for param_name, param_def in custom_params.items():
         if not isinstance(param_def, dict):
-            print(
-                f"Warning: Invalid custom parameter definition for "
+            logger.warning(
+                f"Invalid custom parameter definition for "
                 f"'{param_name}', skipping"
             )
             continue
@@ -185,15 +192,15 @@ def add_custom_parameters(phi, params, custom_params, model):
                         value = default_value
                         # Only warn if values were provided but insufficient
                         if values:
-                            print(
-                                f"Warning: Missing value for custom "
+                            logger.warning(
+                                f"Missing value for custom "
                                 f"parameter '{param_name}' joint "
                                 f"{jname}, using default: {value}"
                             )
                 except (IndexError, TypeError):
                     value = default_value
-                    print(
-                        f"Warning: Error accessing custom parameter "
+                    logger.warning(
+                        f"Error accessing custom parameter "
                         f"'{param_name}' for joint {jname}, "
                         f"using default: {value}"
                     )
@@ -206,71 +213,31 @@ def add_custom_parameters(phi, params, custom_params, model):
                 value = values[0] if values else default_value
             except (IndexError, TypeError):
                 value = default_value
-                print(
-                    f"Warning: Error accessing global custom parameter "
+                logger.warning(
+                    f"Error accessing global custom parameter "
                     f"'{param_name}', using default: {value}"
                 )
 
             phi.append(value)
 
-    return phi, params
+    return dict(zip(params, phi))
 
 
 def get_standard_parameters(
-    model, identif_config=None, include_additional=True, custom_params=None
+    model, identif_config=None
 ):
     """Get standard inertial parameters from robot model with extensible
     parameter support.
 
     Args:
         model: Robot model (Pinocchio model)
-        identif_config (dict, optional): Dictionary of parameter settings for
-            additional parameters. Expected keys:
-            - has_actuator_inertia (bool): Include actuator inertia parameters
-            - has_friction (bool): Include friction parameters
-            - has_joint_offset (bool): Include joint offset parameters
-            - Ia (list): Actuator inertia values
-            - fv (list): Viscous friction coefficients
-            - fs (list): Static friction coefficients
-            - off (list): Joint offset values
-        include_additional (bool): Whether to include additional parameters
-            beyond inertial
-        custom_params (dict, optional): Custom parameter definitions
-            Format: {param_name: {values: list, per_joint: bool,
-            default: float}}
+        identif_config (dict, optional): Dictionary of parameter settings
 
     Returns:
         dict: Parameter names mapped to their values
-
-    Examples:
-        # Basic usage - only inertial parameters
-        params = get_standard_parameters(robot.model)
-
-        # Include standard additional parameters
-        identif_config = {
-            'has_actuator_inertia': True,
-            'has_friction': True,
-            'Ia': [0.1, 0.2, 0.3],
-            'fv': [0.01, 0.02, 0.03],
-            'fs': [0.001, 0.002, 0.003]
-        }
-        params = get_standard_parameters(robot.model, identif_config)
-
-        # Add custom parameters
-        custom = {
-            'gear_ratio': {'values': [100, 50, 25], 'per_joint': True,
-                          'default': 1.0},
-            'temperature': {'values': [20.0], 'per_joint': False,
-                           'default': 25.0}
-        }
-        params = get_standard_parameters(robot.model, identif_config,
-                                        custom_params=custom)
     """
     if identif_config is None:
         identif_config = {}
-
-    if custom_params is None:
-        custom_params = {}
 
     phi = []
     params = []
@@ -318,15 +285,6 @@ def get_standard_parameters(
             params.append(f"{param_name}_{jname}")
         phi.extend(reordered_params)
 
-    # Add additional standard parameters if requested
-    if include_additional:
-        phi, params = add_standard_additional_parameters(
-            phi, params, identif_config, model
-        )
-
-    # Add custom parameters if provided
-    if custom_params:
-        phi, params = add_custom_parameters(phi, params, custom_params, model)
 
     return dict(zip(params, phi))
 

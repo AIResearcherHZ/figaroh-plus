@@ -23,6 +23,12 @@ This module handles all configuration-related functionality including:
 - Frame and joint configuration management
 """
 
+import logging
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 
 def get_sup_joints(model, start_frame, end_frame):
     """Get list of supporting joints between two frames in kinematic chain.
@@ -50,8 +56,8 @@ def get_sup_joints(model, start_frame, end_frame):
     """
     start_frameId = model.getFrameId(start_frame)
     end_frameId = model.getFrameId(end_frame)
-    start_par = model.frames[start_frameId].parent
-    end_par = model.frames[end_frameId].parent
+    start_par = model.frames[start_frameId].parentJoint
+    end_par = model.frames[end_frameId].parentJoint
     branch_s = model.supports[start_par].tolist()
     branch_e = model.supports[end_par].tolist()
     # remove 'universe' joint from branches
@@ -165,7 +171,7 @@ def get_param_from_yaml(robot, calib_data) -> dict:
     except KeyError:
         base_to_ref_frame = None
         ref_frame = None
-        print("base_to_ref_frame and ref_frame are not defined.")
+        logger.warning("base_to_ref_frame and ref_frame are not defined.")
 
     # Validate base-to-ref frame if provided
     if base_to_ref_frame is not None:
@@ -189,7 +195,7 @@ def get_param_from_yaml(robot, calib_data) -> dict:
     except KeyError:
         base_pose = None
         tip_pose = None
-        print("base_pose and tip_pose are not defined.")
+        logger.warning("base_pose and tip_pose are not defined.")
 
     calib_config["base_pose"] = base_pose
     calib_config["tip_pose"] = tip_pose
@@ -203,7 +209,7 @@ def get_param_from_yaml(robot, calib_data) -> dict:
     calib_config["IDX_TOOL"] = IDX_TOOL
 
     # tool_joint: ID of the joint right before the tool's frame (parent)
-    tool_joint = robot.model.frames[IDX_TOOL].parent
+    tool_joint = robot.model.frames[IDX_TOOL].parentJoint
     calib_config["tool_joint"] = tool_joint
 
     # indices of active joints: from base to tool_joint
@@ -462,7 +468,7 @@ def _extract_poses(calib_config, measurements):
     calib_config["tip_pose"] = tip_pose
 
     if not base_pose and not tip_pose:
-        print("Warning: base_pose and tip_pose are not defined.")
+        logger.warning("base_pose and tip_pose are not defined.")
 
 
 def _extract_calibration_params(calib_config, robot, parameters):

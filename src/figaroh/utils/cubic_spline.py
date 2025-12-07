@@ -87,10 +87,16 @@ References:
 
 # from ndcurves import piecewise, ndcurves.exact_cubic,
 # ndcurves.curve_constraints
+import logging
+
 import ndcurves
 import numpy as np
 from matplotlib import pyplot as plt
 import pinocchio as pin
+
+# Configure logger for this module
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 k = 1.5  # take accel limits as k times of vel limits
@@ -165,7 +171,7 @@ class CubicSpline:
         Joint limits are automatically extracted from the robot model
         and can be modified with soft limits for safety margins.
     """
-    
+
     def __init__(self, robot, num_waypoints: int, active_joints: list,
                  soft_lim=0):
         """
@@ -454,11 +460,13 @@ class CubicSpline:
                     - self.rmodel.lowerPositionLimit[j]
                 )
                 if q[i, j] > self.rmodel.upperPositionLimit[j] - delta_lim:
-                    print("Joint q %d upper limit violated!" % j)
+                    logger.warning("Joint q %d upper limit violated!", j)
                     __isViolated_pos = True
 
                 elif q[i, j] < self.rmodel.lowerPositionLimit[j] + delta_lim:
-                    print("Joint position idx_q %d lower limit violated!" % j)
+                    logger.warning(
+                        "Joint position idx_q %d lower limit violated!", j
+                    )
                     __isViolated_pos = True
                 else:
                     __isViolated_pos = False
@@ -470,7 +478,9 @@ class CubicSpline:
                     if abs(v[i, j]) > (1 - soft_lim) * abs(
                         self.rmodel.velocityLimit[j]
                     ):
-                        print("Joint vel idx_v %d limits violated!" % j)
+                        logger.warning(
+                            "Joint vel idx_v %d limits violated!", j
+                        )
                         __isViolated_vel = True
                     else:
                         __isViolated_vel = False
@@ -482,18 +492,20 @@ class CubicSpline:
                     if abs(tau[i, j]) > (1 - soft_lim) * abs(
                         self.rmodel.effortLimit[j]
                     ):
-                        print("Joint effort idx_v %d limits violated!" % j)
+                        logger.warning(
+                            "Joint effort idx_v %d limits violated!", j
+                        )
                         __isViolated_eff = True
                     else:
                         __isViolated_eff = False
                     __isViolated = __isViolated or __isViolated_eff
                     # print(__isViolated)
         if not __isViolated:
-            print(
-                "SUCCEEDED to generate waypoints for  a feasible initial cubic spline"
+            logger.info(
+                "SUCCEEDED to generate waypoints for a feasible initial cubic spline"
             )
         else:
-            print("FAILED to generate a feasible cubic spline")
+            logger.warning("FAILED to generate a feasible cubic spline")
         return __isViolated
 
     def check_self_collision(self):
@@ -790,4 +802,3 @@ def calc_torque(N, robot, q, v, a):
                 robot.model, robot.data, q[i, :], v[i, :], a[i, :]
             )[j]
     return tau
-
