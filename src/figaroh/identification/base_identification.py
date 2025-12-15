@@ -70,7 +70,7 @@ class BaseIdentification(ABC):
         self.model = self.robot.model
         self.data = self.robot.data
 
-        # Load configuration using the TIAGo-style approach
+        # Load configuration initiating self.identif_config
         self.load_param(config_file)
 
         # Initialize attributes for identification results
@@ -89,10 +89,17 @@ class BaseIdentification(ABC):
         self.tau_ref = None
         self.tau_identif = None
         self.tau_noised = None
-        self.filter_config = {
-            'differentiation_method': 'gradient',
-            'filter_params': {}
-        }
+
+        # Set default filter configuration, can be overridden in subclasses
+        self.filter_config = self.identif_config.get("filter_config", {
+            "differentiation_method": "gradient",
+            "filter_params": {
+                "nbutter": 4,
+                "f_butter": 2,
+                "med_fil": 5,
+                "f_sample": 100
+            }
+        })
         logger.info(f"{self.__class__.__name__} initialized")
 
     def initialize(self, truncate=None):

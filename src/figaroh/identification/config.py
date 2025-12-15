@@ -165,6 +165,19 @@ def _extract_signal_processing_params(identif_config, signal_processing):
     identif_config["ts"] = ts
     identif_config["cut_off_frequency_butterworth"] = cutoff_freq
 
+    # Build filter configuration dictionary
+    filter_config_ = {}
+    filter_config_["cutoff_frequency"] = cutoff_freq
+    filter_config_["sampling_frequency"] = sampling_freq
+    filter_config_["filter_type"] = signal_processing.get(
+        "filter_type", "butterworth"
+    )
+    filter_config_["differentiation_method"] = signal_processing.get(
+        "differentiation_method", "gradient"
+    )
+    filter_config_["filter_params"] = signal_processing.get("filter_params", {})
+
+    identif_config["filter_config"] = filter_config_
 
 def _extract_joint_limits(identif_config, joints):
     """Extract joint limit parameters.
