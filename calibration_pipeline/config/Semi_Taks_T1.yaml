@@ -1,0 +1,70 @@
+# Semi_Taks_T1 标定流程配置文件
+
+robot:
+  name: Semi_Taks_T1
+  urdf: ../Semi_Taks_T1/Semi_Taks_T1.urdf
+  xml: ../Semi_Taks_T1/Semi_Taks_T1.xml
+  floating_base: true
+  root_link: base_link
+
+# 真机驱动关节 (按实际SDK顺序排列)
+joint_names:
+  - waist_yaw_joint
+  - waist_roll_joint
+  - waist_pitch_joint
+  - left_shoulder_pitch_joint
+  - left_shoulder_roll_joint
+  - left_shoulder_yaw_joint
+  - left_elbow_joint
+  - left_wrist_roll_joint
+  - left_wrist_yaw_joint
+  - left_wrist_pitch_joint
+  - right_shoulder_pitch_joint
+  - right_shoulder_roll_joint
+  - right_shoulder_yaw_joint
+  - right_elbow_joint
+  - right_wrist_roll_joint
+  - right_wrist_yaw_joint
+  - right_wrist_pitch_joint
+  - neck_yaw_joint
+  - neck_roll_joint
+  - neck_pitch_joint
+
+# 参与标定的关节子集 (运动学链 base_link -> end_frame)
+calib_joints:
+  - waist_yaw_joint
+  - waist_roll_joint
+  - waist_pitch_joint
+  - left_shoulder_pitch_joint
+  - left_shoulder_roll_joint
+  - left_shoulder_yaw_joint
+  - left_elbow_joint
+  - left_wrist_roll_joint
+  - left_wrist_yaw_joint
+  - left_wrist_pitch_joint
+
+# 末端帧 (用于FK计算和测量对比)
+end_frame: left_wrist_pitch_link
+start_frame: base_link
+
+# 测量自由度 [x, y, z, rx, ry, rz] — true=测量该自由度
+# 只测位置 (xyz), 适合使用激光跟踪仪/光学反射球
+measurability: [true, true, true, false, false, false]
+
+# 数据采集参数
+collection:
+  settle_time: 2.0        # 到达姿态后等待稳定 (秒)
+  move_timeout: 5.0       # 单次移动超时 (秒)
+  n_poses: 30             # 采集姿态数量
+
+# 标定优化参数
+calibration:
+  method: lm              # 优化方法: lm / trf / dogbox
+  max_iterations: 3       # 最大异常值剔除轮次
+  outlier_threshold: 3.0  # 异常值阈值 (标准差倍数)
+  soft_ratio: 0.7         # 姿态采样范围相对关节限位的比例
+
+# 可视化参数
+visualization:
+  default_height: 0.8     # 基座离地高度 (仿真中)
+  pose_display_delay: 1.0 # 姿态展示间隔 (秒)

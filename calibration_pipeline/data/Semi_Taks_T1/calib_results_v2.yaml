@@ -1,0 +1,93 @@
+robot: Semi_Taks_T1
+status: CALIBRATED
+rmse_mm: !!python/object/apply:numpy._core.multiarray.scalar
+- &id001 !!python/object/apply:numpy.dtype
+  args:
+  - f8
+  - false
+  - true
+  state: !!python/tuple
+  - 3
+  - <
+  - null
+  - null
+  - null
+  - -1
+  - -1
+  - 0
+- !!binary |
+  kst/SL991T8=
+mae_mm: !!python/object/apply:numpy._core.multiarray.scalar
+- *id001
+- !!binary |
+  MEymCkYl0T8=
+n_samples_used: 15
+n_outliers: 0
+calibration_model: full_params
+parameters:
+  waist_yaw_joint_d_x: 0.00014137366857713398
+  waist_yaw_joint_d_y: 0.00017823770990388075
+  waist_yaw_joint_d_z: 0.0006251268420915226
+  waist_yaw_joint_phi_x: 0.0002599210314813674
+  waist_yaw_joint_phi_y: -0.00023439493199165978
+  waist_yaw_joint_phi_z: -0.0025673159979013706
+  waist_roll_joint_d_x: 0.000520352657700854
+  waist_roll_joint_d_y: 0.0008791130632807492
+  waist_roll_joint_d_z: 0.0006267890744029375
+  waist_roll_joint_phi_x: 0.0015344720755024728
+  waist_roll_joint_phi_y: -0.0027446434195596055
+  waist_roll_joint_phi_z: -0.0025988405634675745
+  waist_pitch_joint_d_x: 0.0005125081406614244
+  waist_pitch_joint_d_y: -0.00029063348787165225
+  waist_pitch_joint_d_z: -0.004491074996400278
+  waist_pitch_joint_phi_x: 0.0013634341611316243
+  waist_pitch_joint_phi_y: 0.0009257901982051591
+  waist_pitch_joint_phi_z: 0.003576044946019238
+  left_shoulder_pitch_joint_d_x: 4.1416926777596735e-05
+  left_shoulder_pitch_joint_d_y: 0.0009223125569968313
+  left_shoulder_pitch_joint_d_z: 0.002210952011583947
+  left_shoulder_pitch_joint_phi_x: -0.002944142490782086
+  left_shoulder_pitch_joint_phi_y: 0.001708615914804822
+  left_shoulder_pitch_joint_phi_z: 0.0010812000593738915
+  left_shoulder_roll_joint_d_x: -0.00017283480911215845
+  left_shoulder_roll_joint_d_y: 0.0008505696972690286
+  left_shoulder_roll_joint_d_z: 0.0003816887858760632
+  left_shoulder_roll_joint_phi_x: 2.5215646194969812e-05
+  left_shoulder_roll_joint_phi_y: 0.0011762701097456226
+  left_shoulder_roll_joint_phi_z: 0.0014061719225893672
+  left_shoulder_yaw_joint_d_x: -0.00016438599748044331
+  left_shoulder_yaw_joint_d_y: -0.00014038538170600332
+  left_shoulder_yaw_joint_d_z: 0.00026388904560960193
+  left_shoulder_yaw_joint_phi_x: -5.578998307413425e-07
+  left_shoulder_yaw_joint_phi_y: -0.0019707841729588796
+  left_shoulder_yaw_joint_phi_z: -0.0002082590375281529
+  left_elbow_joint_d_x: -1.946863351785279e-05
+  left_elbow_joint_d_y: 3.1102101933690914e-05
+  left_elbow_joint_d_z: 0.0002411582426730158
+  left_elbow_joint_phi_x: 0.002384115918344474
+  left_elbow_joint_phi_y: 0.0001358699038146186
+  left_elbow_joint_phi_z: -9.603349566778737e-05
+  left_wrist_roll_joint_d_x: 0.00013826942146960967
+  left_wrist_roll_joint_d_y: -0.00010738893901155145
+  left_wrist_roll_joint_d_z: -0.000164453343424254
+  left_wrist_roll_joint_phi_x: 5.156089488498243e-05
+  left_wrist_roll_joint_phi_y: 0.00010785385016545351
+  left_wrist_roll_joint_phi_z: 4.328858744275209e-05
+  left_wrist_yaw_joint_d_x: 8.975051074275871e-05
+  left_wrist_yaw_joint_d_y: 6.091471488067937e-05
+  left_wrist_yaw_joint_d_z: -0.000144588447327871
+  left_wrist_yaw_joint_phi_x: -4.044259108149775e-05
+  left_wrist_yaw_joint_phi_y: -3.9331015004123425e-05
+  left_wrist_yaw_joint_phi_z: 0.00010305033265996197
+  left_wrist_pitch_joint_d_x: 6.345574846013607e-05
+  left_wrist_pitch_joint_d_y: -0.00014532891203531531
+  left_wrist_pitch_joint_d_z: -0.00019129738235991475
+  left_wrist_pitch_joint_phi_x: 0.0
+  left_wrist_pitch_joint_phi_y: 0.0
+  left_wrist_pitch_joint_phi_z: 0.0
+  tip_d_x: 0.0
+  tip_d_y: 0.0
+  tip_d_z: 0.0
+  tip_phi_x: 0.0
+  tip_phi_y: 0.0
+  tip_phi_z: 0.0

@@ -1,0 +1,221 @@
+robot: Semi_Taks_T1
+method: lm
+rmse_mm: 0.4821
+mae_mm: 0.4022
+n_samples_used: 15
+n_outliers: 0
+success: true
+calibrated_joints:
+  waist_yaw_joint:
+    offset_rad: 9.364999585140305e-05
+    offset_deg: 0.005365749513703063
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - &id001 !!python/object/apply:numpy.dtype
+        args:
+        - f8
+        - false
+        - true
+        state: !!python/tuple
+        - 3
+        - <
+        - null
+        - null
+        - null
+        - -1
+        - -1
+        - 0
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        JeiErb6MGD8=
+  waist_roll_joint:
+    offset_rad: 0.00023507624519737718
+    offset_deg: 0.0134688767135922
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BlIEktnPLj8=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+  waist_pitch_joint:
+    offset_rad: -0.0002918136111134788
+    offset_deg: -0.016719688321274233
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        1QSQ6tEfM78=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+  left_shoulder_pitch_joint:
+    offset_rad: 0.000815697866238818
+    offset_deg: 0.04673604509331103
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        ZUBX1JG6Sj8=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+  left_shoulder_roll_joint:
+    offset_rad: -0.000138574442123523
+    offset_deg: -0.00793973068205776
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        UtLaZMkpIr8=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+  left_shoulder_yaw_joint:
+    offset_rad: 0.003558313699902766
+    offset_deg: 0.20387635718800906
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        2yoKH1MmbT8=
+  left_elbow_joint:
+    offset_rad: -0.02189068482756083
+    offset_deg: -1.2542438512703018
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        +4ev/YJqlr8=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+  left_wrist_roll_joint:
+    offset_rad: -0.24393941502023686
+    offset_deg: -13.976698937549774
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        HNDbIGg5z78=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+  left_wrist_yaw_joint:
+    offset_rad: -0.01610717685282098
+    offset_deg: -0.9228732535374542
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAIA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        0EhBV2Z+kL8=
+  left_wrist_pitch_joint:
+    offset_rad: 0.0
+    offset_deg: 0.0
+    xyz_delta:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_delta:
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    - !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=

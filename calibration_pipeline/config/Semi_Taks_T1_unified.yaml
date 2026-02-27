@@ -1,0 +1,75 @@
+# Semi_Taks_T1 标定配置 - FIGAROH 统一格式
+
+robot:
+  name: "Semi_Taks_T1"
+  description: "半身人形机器人 (上半身固定台)"
+  
+  properties:
+    joints:
+      active_joints: [
+        "waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint",
+        "left_shoulder_pitch_joint", "left_shoulder_roll_joint",
+        "left_shoulder_yaw_joint", "left_elbow_joint",
+        "left_wrist_roll_joint", "left_wrist_yaw_joint", "left_wrist_pitch_joint",
+        "right_shoulder_pitch_joint", "right_shoulder_roll_joint",
+        "right_shoulder_yaw_joint", "right_elbow_joint",
+        "right_wrist_roll_joint", "right_wrist_yaw_joint", "right_wrist_pitch_joint",
+        "neck_yaw_joint", "neck_roll_joint", "neck_pitch_joint",
+      ]
+
+tasks:
+  calibration:
+    enabled: true
+    
+    parameters:
+      # full_params: 完整6参数/关节 (xyz+rpy)
+      # joint_offset: 仅关节角度偏置
+      calibration_level: "full_params"
+      include_non_geometric: false
+      regularization_coefficient: 0.001
+      outlier_threshold: 0.02  # 2cm
+      
+    kinematics:
+      base_frame: "base_link"
+      tool_frame: "left_wrist_pitch_link"
+      
+    measurements:
+      markers:
+        - name: "left_hand_marker"
+          reference_joint: "left_wrist_pitch_joint"
+          # [x, y, z, rx, ry, rz] 哪些自由度可测量
+          measurable_dof: [true, true, true, false, false, false]
+          sensor_type: "mocap"
+          
+      poses:
+        base_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        tool_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    
+    data:
+      source_file: "data/Semi_Taks_T1/measurements.csv"
+      sample_configurations_file: "data/Semi_Taks_T1/candidate_poses.csv"
+      number_of_samples: 30
+
+  optimal_configuration:
+    enabled: true
+    
+    parameters:
+      number_of_samples: 50
+      soft_limit_ratio: 0.7  # 关节范围软限制比例
+      
+    constraints:
+      joint_limit_margin: 0.1
+      collision_checking: false
+      
+    output:
+      output_file: "data/Semi_Taks_T1/optimal_configs.yaml"
+
+# 数据采集参数
+collection:
+  settle_time: 2.0
+  move_timeout: 5.0
+
+environment:
+  working_directory: "."
+  data_directory: "data"
+  results_directory: "results"

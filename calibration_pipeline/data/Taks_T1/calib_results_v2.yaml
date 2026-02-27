@@ -1,0 +1,69 @@
+robot: Taks_T1
+status: CALIBRATED
+rmse_mm: !!python/object/apply:numpy._core.multiarray.scalar
+- &id001 !!python/object/apply:numpy.dtype
+  args:
+  - f8
+  - false
+  - true
+  state: !!python/tuple
+  - 3
+  - <
+  - null
+  - null
+  - null
+  - -1
+  - -1
+  - 0
+- !!binary |
+  MEymCkYl3T8=
+mae_mm: !!python/object/apply:numpy._core.multiarray.scalar
+- *id001
+- !!binary |
+  tMh2vp8a1z8=
+n_samples_used: 20
+n_outliers: 0
+calibration_model: full_params
+parameters:
+  left_hip_pitch_joint_d_x: 4.4538152625099495e-06
+  left_hip_pitch_joint_d_y: 7.184291357981975e-05
+  left_hip_pitch_joint_d_z: -0.00011710753979118332
+  left_hip_pitch_joint_phi_x: 7.377371682799731e-05
+  left_hip_pitch_joint_phi_y: -0.0001883121500149931
+  left_hip_pitch_joint_phi_z: 8.979289540357318e-05
+  left_hip_roll_joint_d_x: 0.00010642670341810538
+  left_hip_roll_joint_d_y: 7.498548934049808e-05
+  left_hip_roll_joint_d_z: 0.0003245094711509959
+  left_hip_roll_joint_phi_x: 0.00011693352909961746
+  left_hip_roll_joint_phi_y: -0.00018387155508726356
+  left_hip_roll_joint_phi_z: 0.0008393198759305879
+  left_hip_yaw_joint_d_x: 0.00010369062415020749
+  left_hip_yaw_joint_d_y: -0.0005573585955876348
+  left_hip_yaw_joint_d_z: -5.206176919859601e-05
+  left_hip_yaw_joint_phi_x: 0.00017872663710491804
+  left_hip_yaw_joint_phi_y: -0.0003891096540738044
+  left_hip_yaw_joint_phi_z: 0.0014260631766705144
+  left_knee_joint_d_x: 0.0002930021722425729
+  left_knee_joint_d_y: 0.00030989130262002135
+  left_knee_joint_d_z: 2.724810451424588e-05
+  left_knee_joint_phi_x: -2.217365844815466e-05
+  left_knee_joint_phi_y: -3.0144267397536762e-05
+  left_knee_joint_phi_z: 0.0014595066414048491
+  left_ankle_pitch_joint_d_x: 3.564325240945775e-05
+  left_ankle_pitch_joint_d_y: 0.0003104251934106949
+  left_ankle_pitch_joint_d_z: -0.0007586694304542458
+  left_ankle_pitch_joint_phi_x: 2.776728328447991e-05
+  left_ankle_pitch_joint_phi_y: -9.224230843942979e-10
+  left_ankle_pitch_joint_phi_z: -2.681648626962852e-05
+  left_ankle_roll_joint_d_x: 0.0002569464763269867
+  left_ankle_roll_joint_d_y: 0.0003082309891333286
+  left_ankle_roll_joint_d_z: 0.000573112527381659
+  left_ankle_roll_joint_phi_x: 0.0
+  left_ankle_roll_joint_phi_y: 0.0
+  left_ankle_roll_joint_phi_z: 0.0
+  tip_d_x: 0.0
+  tip_d_y: 0.0
+  tip_d_z: 0.0
+  tip_phi_x: 0.0
+  tip_phi_y: 0.0
+  tip_phi_z: 0.0

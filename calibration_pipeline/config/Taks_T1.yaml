@@ -1,0 +1,78 @@
+# Taks_T1 标定流程配置文件
+
+robot:
+  name: Taks_T1
+  urdf: ../Taks_T1/Taks_T1.urdf
+  xml: ../Taks_T1/Taks_T1.xml
+  floating_base: true
+  root_link: pelvis
+
+# 真机驱动关节 (按实际SDK顺序排列)
+joint_names:
+  - left_hip_pitch_joint
+  - left_hip_roll_joint
+  - left_hip_yaw_joint
+  - left_knee_joint
+  - left_ankle_pitch_joint
+  - left_ankle_roll_joint
+  - right_hip_pitch_joint
+  - right_hip_roll_joint
+  - right_hip_yaw_joint
+  - right_knee_joint
+  - right_ankle_pitch_joint
+  - right_ankle_roll_joint
+  - waist_yaw_joint
+  - waist_roll_joint
+  - waist_pitch_joint
+  - left_shoulder_pitch_joint
+  - left_shoulder_roll_joint
+  - left_shoulder_yaw_joint
+  - left_elbow_joint
+  - left_wrist_roll_joint
+  - left_wrist_yaw_joint
+  - left_wrist_pitch_joint
+  - right_shoulder_pitch_joint
+  - right_shoulder_roll_joint
+  - right_shoulder_yaw_joint
+  - right_elbow_joint
+  - right_wrist_roll_joint
+  - right_wrist_yaw_joint
+  - right_wrist_pitch_joint
+  - neck_yaw_joint
+  - neck_roll_joint
+  - neck_pitch_joint
+
+# 参与标定的关节子集
+# 腿部运动学链: pelvis -> left_ankle_roll_link
+calib_joints:
+  - left_hip_pitch_joint
+  - left_hip_roll_joint
+  - left_hip_yaw_joint
+  - left_knee_joint
+  - left_ankle_pitch_joint
+  - left_ankle_roll_joint
+
+# 末端帧
+end_frame: left_ankle_roll_link
+start_frame: pelvis
+
+# 测量自由度 [x, y, z, rx, ry, rz]
+measurability: [true, true, true, false, false, false]
+
+# 数据采集参数
+collection:
+  settle_time: 2.5        # 全身机器人需要更长稳定时间
+  move_timeout: 8.0
+  n_poses: 30
+
+# 标定优化参数
+calibration:
+  method: lm
+  max_iterations: 3
+  outlier_threshold: 3.0
+  soft_ratio: 0.65        # 腿部关节范围更保守
+
+# 可视化参数
+visualization:
+  default_height: 0.85
+  pose_display_delay: 1.5
